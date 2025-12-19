@@ -1,36 +1,36 @@
+// models/Question.js
 const mongoose = require('mongoose');
-
-const optionSchema = new mongoose.Schema({
-    text: {
-        type: String,
-        required: true,
-    },
-    votes: {
-        type: Number,
-        default: 0,
-    },
-    percentage: {
-        type: Number,
-        default: 0,
-    },
-    votedBy: [{
-        type: String, // Student socket IDs or names
-    }],
-});
 
 const questionSchema = new mongoose.Schema({
     questionText: {
         type: String,
         required: true,
+        trim: true,
     },
-    options: [optionSchema],
+    options: [{
+        text: {
+            type: String,
+            required: true,
+        },
+        votes: {
+            type: Number,
+            default: 0,
+        },
+        percentage: {
+            type: Number,
+            default: 0,
+        },
+        isCorrect: {
+            type: Boolean,
+            default: false,
+        },
+        votedBy: [{
+            type: String, // Socket IDs of students who voted for this option
+        }],
+    }],
     timeLimit: {
         type: Number,
-        default: 60, // in seconds
-    },
-    isActive: {
-        type: Boolean,
-        default: true,
+        default: 60, // seconds
     },
     totalVotes: {
         type: Number,
@@ -43,6 +43,10 @@ const questionSchema = new mongoose.Schema({
     allStudentsAnswered: {
         type: Boolean,
         default: false,
+    },
+    isActive: {
+        type: Boolean,
+        default: true,
     },
     createdAt: {
         type: Date,
@@ -65,4 +69,10 @@ questionSchema.methods.calculatePercentages = function() {
         });
     }
 };
-module.exports = mongoose.models.Question || mongoose.model('Question', questionSchema);
+
+// Pre-save middleware to calculate percentages
+questionSchema.pre('save', function() {
+    this.calculatePercentages();
+});
+
+module.exports = mongoose.model('Question', questionSchema);

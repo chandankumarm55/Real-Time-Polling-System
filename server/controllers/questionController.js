@@ -14,18 +14,19 @@ exports.createQuestion = async(req, res) => {
             });
         }
 
-        // Check if there's an active question
+        // Auto-close any active questions before creating new one
         const activeQuestion = await Question.findOne({ isActive: true });
         if (activeQuestion) {
-            return res.status(400).json({
-                success: false,
-                message: 'Please close the current question before creating a new one',
-            });
+            activeQuestion.isActive = false;
+            activeQuestion.endedAt = new Date();
+            await activeQuestion.save();
+            console.log('Auto-closed previous active question:', activeQuestion._id);
         }
 
         // Format options
         const formattedOptions = options.map(opt => ({
             text: typeof opt === 'string' ? opt : opt.text,
+            isCorrect: opt.isCorrect || false,
             votes: 0,
             percentage: 0,
             votedBy: [],
@@ -178,6 +179,7 @@ exports.getPollResults = async(req, res) => {
                     text: opt.text,
                     votes: opt.votes,
                     percentage: opt.percentage,
+                    isCorrect: opt.isCorrect,
                 })),
                 totalVotes: question.totalVotes,
             },

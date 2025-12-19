@@ -1,30 +1,78 @@
-import React, { useState } from 'react';
+// src/components/common/ChatPopup.jsx
+import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, X, Send } from 'lucide-react';
+import { useSocket } from '../../context/SocketContext';
+import { chatAPI } from '../../services/api';
 
 const colors = {
     primary: '#7765DA',
 };
 
-const ChatPopup = () => {
+const ChatPopup = ({ userName, userRole }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [message, setMessage] = useState('');
-    const [messages, setMessages] = useState([
-        { id: 1, text: 'Hey There, how can I help?', sender: 'other', time: '10:30 AM' },
-        { id: 2, text: 'Nothing bro..just chilll!', sender: 'me', time: '10:32 AM' },
-        { id: 3, text: 'Great! Let me know if you need anything.', sender: 'other', time: '10:33 AM' },
-    ]);
+    const [messages, setMessages] = useState([]);
+    const { socketService } = useSocket();
+    const messagesEndRef = useRef(null);
+
+    useEffect(() => {
+        // Load chat history
+        loadChatHistory();
+
+        // Listen for new chat messages
+        socketService.onChatNewMessage((newMessage) => {
+            console.log('New chat message:', newMessage);
+            setMessages(prev => [...prev, {
+                id: newMessage.id,
+                text: newMessage.message,
+                sender: newMessage.sender,
+                senderRole: newMessage.senderRole,
+                time: new Date(newMessage.timestamp).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }),
+            }]);
+        });
+
+        return () => {
+            socketService.removeAllListeners();
+        };
+    }, [socketService]);
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
+
+    const loadChatHistory = async () => {
+        try {
+            const response = await chatAPI.getHistory(50);
+            const chatHistory = response.data.data.map(msg => ({
+                id: msg._id,
+                text: msg.message,
+                sender: msg.sender,
+                senderRole: msg.senderRole,
+                time: new Date(msg.timestamp).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }),
+            }));
+            setMessages(chatHistory);
+        } catch (error) {
+            console.error('Error loading chat history:', error);
+        }
+    };
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
 
     const handleSend = () => {
         if (message.trim() === '') return;
 
-        const newMessage = {
-            id: messages.length + 1,
-            text: message,
-            sender: 'me',
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
+        // Send via socket
+        socketService.sendChatMessage(userName, message.trim(), userRole);
 
-        setMessages([...messages, newMessage]);
+        // Clear input
         setMessage('');
     };
 
@@ -33,6 +81,10 @@ const ChatPopup = () => {
             e.preventDefault();
             handleSend();
         }
+    };
+
+    const isMyMessage = (msg) => {
+        return msg.sender === userName && msg.senderRole === userRole;
     };
 
     return (
@@ -48,7 +100,7 @@ const ChatPopup = () => {
 
             {/* Chat Popup Window */ }
             { isOpen && (
-                <div className="fixed bottom-24 right-8 w-96 h-96 md:h-[500px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden z-50 transition-all duration-300">
+                <div className="fixed bottom-24 right-8 w-96 h-[500px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden z-50 transition-all duration-300">
                     {/* Header */ }
                     <div
                         className="p-4 text-white flex items-center justify-between"
@@ -60,7 +112,7 @@ const ChatPopup = () => {
                             </div>
                             <div>
                                 <h3 className="font-semibold">Class Chat</h3>
-                                <p className="text-sm opacity-90">5 participants</p>
+                                <p className="text-sm opacity-90">Real-time messaging</p>
                             </div>
                         </div>
                         <button
@@ -73,22 +125,36 @@ const ChatPopup = () => {
 
                     {/* Messages Area */ }
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-                        { messages.map((msg) => (
-                            <div
-                                key={ msg.id }
-                                className={ `flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}` }
-                            >
-                                <div
-                                    className={ `max-w-xs px-4 py-3 rounded-2xl ${msg.sender === 'me'
-                                        ? 'bg-purple-600 text-white'
-                                        : 'bg-gray-800 text-white'
-                                        }` }
-                                >
-                                    <p className="text-sm">{ msg.text }</p>
-                                    <p className="text-xs opacity-70 mt-1">{ msg.time }</p>
-                                </div>
+                        { messages.length === 0 ? (
+                            <div className="text-center text-gray-500 mt-8">
+                                No messages yet. Start the conversation!
                             </div>
-                        )) }
+                        ) : (
+                            messages.map((msg) => (
+                                <div
+                                    key={ msg.id }
+                                    className={ `flex ${isMyMessage(msg) ? 'justify-end' : 'justify-start'}` }
+                                >
+                                    <div className="max-w-xs">
+                                        { !isMyMessage(msg) && (
+                                            <p className="text-xs text-gray-600 mb-1 px-2">
+                                                { msg.sender } ({ msg.senderRole })
+                                            </p>
+                                        ) }
+                                        <div
+                                            className={ `px-4 py-3 rounded-2xl ${isMyMessage(msg)
+                                                ? 'bg-purple-600 text-white'
+                                                : 'bg-gray-800 text-white'
+                                                }` }
+                                        >
+                                            <p className="text-sm break-words">{ msg.text }</p>
+                                            <p className="text-xs opacity-70 mt-1">{ msg.time }</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        ) }
+                        <div ref={ messagesEndRef } />
                     </div>
 
                     {/* Input Area */ }
@@ -104,7 +170,8 @@ const ChatPopup = () => {
                             />
                             <button
                                 onClick={ handleSend }
-                                className="w-12 h-12 rounded-full flex items-center justify-center text-white hover:opacity-90 transition"
+                                disabled={ !message.trim() }
+                                className="w-12 h-12 rounded-full flex items-center justify-center text-white hover:opacity-90 transition disabled:opacity-50"
                                 style={ { backgroundColor: colors.primary } }
                             >
                                 <Send size={ 20 } />

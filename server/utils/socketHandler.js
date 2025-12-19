@@ -1,83 +1,95 @@
-const Student = require('../models/Student');
+// utils/socketHandler.js
 const Question = require('../models/Question');
-const ChatMessage = require('../models/ChatMessage');
+const Student = require('../models/Student');
+const Chat = require('../models/Chat');
 
-const socketHandler = (io) => {
-    // Store connected users
-    const connectedUsers = new Map(); // socketId -> { role, name }
+module.exports = (io) => {
+    // Store connected clients
+    const connectedClients = {
+        teachers: new Set(),
+        students: new Map(), // socketId -> student info
+    };
 
     io.on('connection', (socket) => {
-        console.log(`New connection: ${socket.id}`);
+        console.log(`✅ New connection: ${socket.id}`);
 
-        // Student joins
-        socket.on('student:join', async(data) => {
+        // TEACHER EVENTS
+        socket.on('teacher:join', async() => {
+            connectedClients.teachers.add(socket.id);
+            socket.join('teachers');
+            console.log(`👨‍🏫 Teacher joined: ${socket.id}`);
+
+            // Send current active students to teacher
+            const students = await Student.find({ isActive: true, isKicked: false });
+            socket.emit('students:list', students);
+        });
+
+        // STUDENT EVENTS
+        socket.on('student:join', async({ name }) => {
             try {
-                const { name } = data;
+                // Register or update student
+                let student = await Student.findOne({ socketId: socket.id });
 
-                // Register student in database
-                const student = new Student({
-                    name,
-                    socketId: socket.id,
-                    isActive: true,
-                });
-                await student.save();
-
-                connectedUsers.set(socket.id, { role: 'student', name });
-                socket.join('students');
-
-                // Notify all about new student
-                io.emit('student:joined', {
-                    studentId: socket.id,
-                    name,
-                    totalStudents: await Student.countDocuments({ isActive: true, isKicked: false }),
-                });
-
-                // Send active question if exists
-                const activeQuestion = await Question.findOne({ isActive: true });
-                if (activeQuestion) {
-                    socket.emit('question:new', activeQuestion);
+                if (student) {
+                    student.name = name;
+                    student.isActive = true;
+                    student.isKicked = false;
+                } else {
+                    student = new Student({
+                        name,
+                        socketId: socket.id,
+                        isActive: true,
+                    });
                 }
 
-                console.log(`Student joined: ${name} (${socket.id})`);
+                await student.save();
+
+                connectedClients.students.set(socket.id, { name, id: student._id });
+                socket.join('students');
+
+                console.log(`👨‍🎓 Student joined: ${name} (${socket.id})`);
+
+                // Notify all teachers
+                io.to('teachers').emit('student:joined', {
+                    socketId: socket.id,
+                    name,
+                    id: student._id,
+                });
+
+                // Send updated student list to all teachers
+                const allStudents = await Student.find({ isActive: true, isKicked: false });
+                io.to('teachers').emit('students:list', allStudents);
+
             } catch (error) {
                 console.error('Error in student:join:', error);
-                socket.emit('error', { message: error.message });
+                socket.emit('error', { message: 'Failed to join' });
             }
         });
 
-        // Teacher joins
-        socket.on('teacher:join', () => {
-            connectedUsers.set(socket.id, { role: 'teacher', name: 'Teacher' });
-            socket.join('teachers');
-            console.log(`Teacher joined: ${socket.id}`);
-        });
-
-        // Teacher creates new question
+        // QUESTION EVENTS
         socket.on('question:create', async(data) => {
             try {
                 const { questionText, options, timeLimit } = data;
 
-                // Check for active question
-                const activeQuestion = await Question.findOne({ isActive: true });
-                if (activeQuestion) {
-                    socket.emit('error', {
-                        message: 'Please close the current question before creating a new one'
-                    });
-                    return;
-                }
+                // Auto-close any active questions
+                await Question.updateMany({ isActive: true }, { isActive: false, endedAt: new Date() });
 
+                // Format options
                 const formattedOptions = options.map(opt => ({
                     text: typeof opt === 'string' ? opt : opt.text,
+                    isCorrect: opt.isCorrect || false,
                     votes: 0,
                     percentage: 0,
                     votedBy: [],
                 }));
 
+                // Get active students count
                 const activeStudents = await Student.countDocuments({
                     isActive: true,
                     isKicked: false
                 });
 
+                // Create question
                 const question = new Question({
                     questionText,
                     options: formattedOptions,
@@ -88,27 +100,27 @@ const socketHandler = (io) => {
 
                 await question.save();
 
-                // Broadcast new question to all students
+                console.log(`📝 Question created: ${question._id}`);
+
+                // Notify teacher
+                io.to('teachers').emit('question:created', question);
+
+                // Notify all students
                 io.to('students').emit('question:new', question);
 
-                // Send to teacher as well
-                socket.emit('question:created', question);
-
-                console.log(`New question created: ${question._id}`);
             } catch (error) {
-                console.error('Error in question:create:', error);
-                socket.emit('error', { message: error.message });
+                console.error('Error creating question:', error);
+                socket.emit('error', { message: 'Failed to create question' });
             }
         });
 
-        // Student submits answer
-        socket.on('answer:submit', async(data) => {
+        // ANSWER SUBMISSION
+        socket.on('answer:submit', async({ questionId, optionIndex }) => {
             try {
-                const { questionId, optionIndex } = data;
-
                 const question = await Question.findById(questionId);
+
                 if (!question || !question.isActive) {
-                    socket.emit('error', { message: 'Question not found or inactive' });
+                    socket.emit('error', { message: 'Question not active' });
                     return;
                 }
 
@@ -118,7 +130,7 @@ const socketHandler = (io) => {
                 );
 
                 if (alreadyVoted) {
-                    socket.emit('error', { message: 'You have already answered' });
+                    socket.emit('error', { message: 'Already voted' });
                     return;
                 }
 
@@ -126,6 +138,8 @@ const socketHandler = (io) => {
                 question.options[optionIndex].votes += 1;
                 question.options[optionIndex].votedBy.push(socket.id);
                 question.totalVotes += 1;
+
+                // Calculate percentages
                 question.calculatePercentages();
 
                 // Check if all students answered
@@ -135,151 +149,118 @@ const socketHandler = (io) => {
 
                 await question.save();
 
-                // Update student record
-                await Student.findOneAndUpdate({ socketId: socket.id }, {
-                    currentAnswer: {
-                        questionId: question._id,
-                        optionIndex,
-                        answeredAt: new Date(),
-                    },
-                });
+                console.log(`✅ Answer submitted by ${socket.id} for question ${questionId}`);
 
                 // Broadcast updated results to everyone
                 io.emit('results:update', {
                     questionId: question._id,
-                    options: question.options,
+                    options: question.options.map(opt => ({
+                        text: opt.text,
+                        votes: opt.votes,
+                        percentage: opt.percentage,
+                        isCorrect: opt.isCorrect,
+                    })),
                     totalVotes: question.totalVotes,
-                    allStudentsAnswered: question.allStudentsAnswered,
                 });
 
-                console.log(`Answer submitted by ${socket.id} for question ${questionId}`);
             } catch (error) {
-                console.error('Error in answer:submit:', error);
-                socket.emit('error', { message: error.message });
+                console.error('Error submitting answer:', error);
+                socket.emit('error', { message: 'Failed to submit answer' });
             }
         });
 
-        // Question time expired
-        socket.on('question:timeup', async(data) => {
+        // QUESTION TIME UP
+        socket.on('question:timeup', async({ questionId }) => {
             try {
-                const { questionId } = data;
-
                 const question = await Question.findByIdAndUpdate(
-                    questionId, {
-                        isActive: false,
-                        endedAt: new Date(),
-                    }, { new: true }
+                    questionId, { isActive: false, endedAt: new Date() }, { new: true }
                 );
 
                 if (question) {
-                    // Broadcast to all that time is up
                     io.emit('question:ended', {
                         questionId: question._id,
                         results: question.options,
                     });
                 }
             } catch (error) {
-                console.error('Error in question:timeup:', error);
+                console.error('Error ending question:', error);
             }
         });
 
-        // Chat message
-        socket.on('chat:message', async(data) => {
+        // STUDENT MANAGEMENT
+        socket.on('student:kick', async({ studentId }) => {
             try {
-                const { sender, message, senderRole } = data;
-
-                const chatMessage = new ChatMessage({
-                    sender,
-                    senderRole,
-                    message,
-                    socketId: socket.id,
-                });
-
-                await chatMessage.save();
-
-                // Broadcast to all users
-                io.emit('chat:newMessage', {
-                    id: chatMessage._id,
-                    sender,
-                    senderRole,
-                    message,
-                    timestamp: chatMessage.timestamp,
-                });
-
-                console.log(`Chat message from ${sender}: ${message}`);
-            } catch (error) {
-                console.error('Error in chat:message:', error);
-            }
-        });
-
-        // Teacher kicks student
-        socket.on('student:kick', async(data) => {
-            try {
-                const { studentId } = data;
-
-                await Student.findOneAndUpdate({ socketId: studentId }, {
-                    isKicked: true,
-                    isActive: false,
-                });
+                await Student.findOneAndUpdate({ socketId: studentId }, { isKicked: true, isActive: false });
 
                 // Notify the kicked student
                 io.to(studentId).emit('student:kicked');
 
-                // Update all about student count
-                const activeCount = await Student.countDocuments({
-                    isActive: true,
-                    isKicked: false
-                });
+                // Update teachers
+                const students = await Student.find({ isActive: true, isKicked: false });
+                io.to('teachers').emit('students:list', students);
 
-                io.emit('students:update', { totalStudents: activeCount });
-
-                console.log(`Student kicked: ${studentId}`);
+                console.log(`👢 Student kicked: ${studentId}`);
             } catch (error) {
-                console.error('Error in student:kick:', error);
+                console.error('Error kicking student:', error);
             }
         });
 
-        // Get active students
         socket.on('students:get', async() => {
             try {
-                const students = await Student.find({
-                    isActive: true,
-                    isKicked: false
-                }).select('name socketId joinedAt');
-
+                const students = await Student.find({ isActive: true, isKicked: false });
                 socket.emit('students:list', students);
             } catch (error) {
-                console.error('Error in students:get:', error);
+                console.error('Error getting students:', error);
             }
         });
 
-        // Disconnect
-        socket.on('disconnect', async() => {
+        // CHAT EVENTS
+        socket.on('chat:message', async({ sender, message, senderRole }) => {
             try {
-                const user = connectedUsers.get(socket.id);
+                const chat = new Chat({
+                    sender,
+                    message,
+                    senderRole,
+                });
+                await chat.save();
 
-                if (user && user.role === 'student') {
-                    await Student.findOneAndUpdate({ socketId: socket.id }, { isActive: false });
-
-                    const activeCount = await Student.countDocuments({
-                        isActive: true,
-                        isKicked: false
-                    });
-
-                    io.emit('student:left', {
-                        studentId: socket.id,
-                        totalStudents: activeCount,
-                    });
-
-                    console.log(`Student disconnected: ${user.name} (${socket.id})`);
-                }
-
-                connectedUsers.delete(socket.id);
+                // Broadcast to everyone
+                io.emit('chat:newMessage', chat);
+                console.log(`💬 Chat: ${sender} (${senderRole}): ${message}`);
             } catch (error) {
-                console.error('Error in disconnect:', error);
+                console.error('Error saving chat:', error);
+            }
+        });
+
+        // DISCONNECT
+        socket.on('disconnect', async() => {
+            console.log(`❌ Disconnected: ${socket.id}`);
+
+            // Handle teacher disconnect
+            if (connectedClients.teachers.has(socket.id)) {
+                connectedClients.teachers.delete(socket.id);
+            }
+
+            // Handle student disconnect
+            if (connectedClients.students.has(socket.id)) {
+                const studentInfo = connectedClients.students.get(socket.id);
+                connectedClients.students.delete(socket.id);
+
+                // Mark student as inactive
+                await Student.findOneAndUpdate({ socketId: socket.id }, { isActive: false });
+
+                // Notify teachers
+                io.to('teachers').emit('student:left', {
+                    socketId: socket.id,
+                    name: studentInfo.name,
+                });
+
+                // Send updated student list
+                const students = await Student.find({ isActive: true, isKicked: false });
+                io.to('teachers').emit('students:list', students);
             }
         });
     });
-};
 
-module.exports = socketHandler;
+    console.log('🔌 Socket.io handler initialized');
+};

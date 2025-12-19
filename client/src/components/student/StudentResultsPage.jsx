@@ -1,6 +1,5 @@
 // src/components/student/StudentResultsPage.jsx
-import React, { useState, useEffect } from 'react';
-import { Clock } from 'lucide-react';
+import React from 'react';
 
 const colors = {
     primary: '#7765DA',
@@ -9,29 +8,14 @@ const colors = {
 };
 
 const StudentResultsPage = ({ question, studentName }) => {
-    const [results, setResults] = useState([]);
-
-    useEffect(() => {
-        // Simulate poll results
-        const mockResults = question.options.map((opt) => ({
-            ...opt,
-            percentage: Math.floor(Math.random() * 100),
-        }));
-        setResults(mockResults);
-    }, [question]);
-
     return (
         <div className="min-h-screen bg-gray-50 pt-24 pb-12 px-6">
             <div className="max-w-3xl mx-auto">
                 {/* Question Header */ }
-                <div className="flex items-center justify-between mb-6">
+                <div className="mb-6">
                     <h2 className="text-xl font-semibold" style={ { color: colors.darkGray } }>
-                        Question { question.questionNumber }
+                        Question Results
                     </h2>
-                    <div className="flex items-center gap-2 text-red-600 font-semibold">
-                        <Clock size={ 20 } />
-                        <span>00:15</span>
-                    </div>
                 </div>
 
                 {/* Question Box */ }
@@ -44,7 +28,7 @@ const StudentResultsPage = ({ question, studentName }) => {
 
                 {/* Results */ }
                 <div className="space-y-4 mb-8">
-                    { results.map((option) => (
+                    { question.options.map((option) => (
                         <div
                             key={ option.id }
                             className="bg-white rounded-2xl p-5 border-2 border-gray-200"
@@ -64,18 +48,23 @@ const StudentResultsPage = ({ question, studentName }) => {
                                         { option.text }
                                     </span>
                                 </div>
-                                <span
-                                    className="font-bold text-lg"
-                                    style={ { color: colors.darkGray } }
-                                >
-                                    { option.percentage }%
-                                </span>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-sm text-gray-600">
+                                        { option.votes || 0 } votes
+                                    </span>
+                                    <span
+                                        className="font-bold text-lg"
+                                        style={ { color: colors.darkGray } }
+                                    >
+                                        { option.percentage || 0 }%
+                                    </span>
+                                </div>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                                 <div
                                     className="h-full rounded-full transition-all duration-500"
                                     style={ {
-                                        width: `${option.percentage}%`,
+                                        width: `${option.percentage || 0}%`,
                                         backgroundColor: colors.primary,
                                     } }
                                 ></div>

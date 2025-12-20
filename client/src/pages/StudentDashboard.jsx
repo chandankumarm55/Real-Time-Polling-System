@@ -1,4 +1,3 @@
-// src/pages/StudentDashboard.jsx
 import React, { useState, useEffect } from 'react';
 import StudentNameEntry from '../components/student/StudentNameEntry';
 import StudentWaitingPage from '../components/student/StudentWaitingPage';
@@ -8,22 +7,28 @@ import StudentKickedPage from '../components/student/StudentKickedPage';
 import Header from '../components/common/Header';
 import ChatPopup from '../components/common/ChatPopup';
 import { useSocket } from '../context/SocketContext';
-import { studentAPI } from '../services/api';
+import { studentAPI, questionAPI } from '../services/api';
 
 const StudentDashboard = () => {
     const [studentName, setStudentName] = useState('');
     const [currentPage, setCurrentPage] = useState('name-entry');
     const [currentQuestion, setCurrentQuestion] = useState(null);
     const [isRegistering, setIsRegistering] = useState(false);
+
     const { socketService, socket, isConnected } = useSocket();
 
+    /* ===============================
+       SOCKET LISTENERS (NO CLEANUP)
+       =============================== */
     useEffect(() => {
         if (!socket) return;
 
-        // Listen for new questions
-        socketService.onQuestionNew((question) => {
-            console.log('New question received:', question);
-            const formattedQuestion = {
+        console.log('🎧 Student socket listeners attached');
+
+        socket.on('question:new', (question) => {
+            console.log('📨 Question received:', question);
+
+            setCurrentQuestion({
                 _id: question._id,
                 questionNumber: 1,
                 text: question.questionText,
@@ -32,17 +37,16 @@ const StudentDashboard = () => {
                     text: opt.text,
                 })),
                 timeLimit: question.timeLimit,
-            };
-            setCurrentQuestion(formattedQuestion);
+            });
+
             setCurrentPage('question');
         });
 
-        // Listen for results updates
-        socketService.onResultsUpdate((data) => {
-            console.log('Results updated:', data);
-            if (currentQuestion) {
-                const updatedQuestion = {
-                    ...currentQuestion,
+        socket.on('results:update', (data) => {
+            setCurrentQuestion((prev) => {
+                if (!prev) return null;
+                return {
+                    ...prev,
                     options: data.options.map((opt, idx) => ({
                         id: idx,
                         text: opt.text,
@@ -50,98 +54,78 @@ const StudentDashboard = () => {
                         percentage: opt.percentage,
                     })),
                 };
-                setCurrentQuestion(updatedQuestion);
-            }
+            });
         });
 
-        // Listen for being kicked
-        socketService.onStudentKicked(() => {
-            console.log('You have been kicked out');
+        socket.on('student:kicked', () => {
             setCurrentPage('kicked');
         });
 
-        // Listen for question ended
-        socketService.onQuestionEnded((data) => {
-            console.log('Question ended:', data);
+        socket.on('question:ended', () => {
             setCurrentPage('results');
         });
 
-        // Error handling
-        socketService.onError((error) => {
-            console.error('Socket error:', error);
-            alert(error.message);
+        socket.on('error', (err) => {
+            console.error('❌ Socket error:', err);
         });
 
-        return () => {
-            socketService.removeAllListeners();
-        };
-    }, [socket, socketService, currentQuestion]);
+    }, [socket]);
 
+    /* ===============================
+       STUDENT NAME SUBMIT
+       =============================== */
     const handleNameSubmit = async (name) => {
-        // Check if socket is connected
-        if (!socket || !isConnected) {
-            alert('Not connected to server. Please wait and try again.');
-            return;
-        }
-
-        if (isRegistering) {
-            console.log('Already registering, please wait...');
-            return;
-        }
+        if (!socket || !isConnected || isRegistering) return;
 
         try {
             setIsRegistering(true);
             setStudentName(name);
 
-            console.log('Registering student:', name, 'with socket ID:', socket.id);
+            console.log('📝 Registering student:', name, socket.id);
 
-            // Register student via API
-            const response = await studentAPI.register({
+            await studentAPI.register({
                 name,
                 socketId: socket.id,
             });
 
-            console.log('Registration successful:', response.data);
-
-            // Join via socket
             socketService.studentJoin(name);
 
-            // Move to waiting page
-            setCurrentPage('waiting');
+            /* 🔥 IMPORTANT FALLBACK */
+            const active = await questionAPI.getActive().catch(() => null);
 
-            console.log('✅ Student successfully joined and moved to waiting page');
-        } catch (error) {
-            console.error('Error registering student:', error);
+            if (active?.data?.data) {
+                console.log('📥 Active question fetched via API');
 
-            // More detailed error message
-            if (error.response) {
-                // Server responded with error
-                console.error('Server error:', error.response.data);
-                alert(`Failed to register: ${error.response.data.message || 'Server error'}`);
-            } else if (error.request) {
-                // Request made but no response
-                console.error('No response from server:', error.request);
-                alert('Cannot connect to server. Please check if the server is running on http://localhost:5000');
+                setCurrentQuestion({
+                    _id: active.data.data._id,
+                    questionNumber: 1,
+                    text: active.data.data.questionText,
+                    options: active.data.data.options.map((opt, idx) => ({
+                        id: idx,
+                        text: opt.text,
+                    })),
+                    timeLimit: active.data.data.timeLimit,
+                });
+
+                setCurrentPage('question');
             } else {
-                // Something else went wrong
-                console.error('Error:', error.message);
-                alert('Failed to register. Please try again.');
+                setCurrentPage('waiting');
             }
 
-            // Reset state on error
-            setStudentName('');
+        } catch (err) {
+            console.error('❌ Registration failed:', err);
+            setCurrentPage('name-entry');
         } finally {
             setIsRegistering(false);
         }
     };
 
+    /* ===============================
+       ANSWER SUBMIT
+       =============================== */
     const handleAnswerSubmit = (optionIndex) => {
         if (!currentQuestion) return;
-
-        // Submit answer via socket
         socketService.submitAnswer(currentQuestion._id, optionIndex);
-
-        // Move to results page
         setCurrentPage('results');
     };
 
@@ -149,23 +133,8 @@ const StudentDashboard = () => {
         <div className="min-h-screen bg-gray-50">
             { studentName && <Header userName={ studentName } userRole="student" /> }
 
-            { !isConnected && currentPage !== 'name-entry' && (
-                <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
-                    Disconnected from server...
-                </div>
-            ) }
-
-            { !isConnected && currentPage === 'name-entry' && (
-                <div className="fixed top-4 right-4 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg z-50">
-                    Connecting to server...
-                </div>
-            ) }
-
             { currentPage === 'name-entry' && (
-                <StudentNameEntry
-                    onSubmit={ handleNameSubmit }
-                    isLoading={ isRegistering }
-                />
+                <StudentNameEntry onSubmit={ handleNameSubmit } isLoading={ isRegistering } />
             ) }
 
             { currentPage === 'waiting' && (
@@ -187,9 +156,7 @@ const StudentDashboard = () => {
                 />
             ) }
 
-            { currentPage === 'kicked' && (
-                <StudentKickedPage />
-            ) }
+            { currentPage === 'kicked' && <StudentKickedPage /> }
 
             { studentName && <ChatPopup userName={ studentName } userRole="student" /> }
         </div>

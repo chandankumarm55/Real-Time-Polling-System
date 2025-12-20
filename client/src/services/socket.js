@@ -12,7 +12,9 @@ class SocketService {
     }
 
     connect() {
-        if (this.socket) {
+        // FIX: Check if socket exists AND is connected
+        if (this.socket && this.socket.connected) {
+            console.log('✅ Socket already connected:', this.socket.id);
             return this.socket;
         }
 

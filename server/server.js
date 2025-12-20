@@ -22,7 +22,7 @@ connectDB();
 // Socket.io configuration
 const io = socketIo(server, {
     cors: {
-        origin: process.env.CLIENT_URL || 'http://localhost:3000',
+        origin: ['http://localhost:5173', 'http://localhost:3000'],
         methods: ['GET', 'POST', 'PUT', 'DELETE'],
         credentials: true,
     },
@@ -33,7 +33,7 @@ socketHandler(io);
 
 // Middleware
 app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    origin: ['http://localhost:5173', 'http://localhost:3000'],
     credentials: true,
 }));
 app.use(express.json());
@@ -92,4 +92,5 @@ server.listen(PORT, () => {
   `);
     console.log(`API: http://localhost:${PORT}/api`);
     console.log(`Socket.io: Connected and listening`);
+    console.log(`Accepting connections from: http://localhost:5173`);
 });

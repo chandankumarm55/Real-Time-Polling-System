@@ -19,29 +19,84 @@ const server = http.createServer(app);
 // Connect to MongoDB
 connectDB();
 
-// Socket.io configuration
+// CORS allowed origins - ADD YOUR VERCEL URL HERE
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://real-time-polling-system-frontend.vercel.app', // Your Vercel URL
+    'https://real-time-polling-system-frontend-*.vercel.app', // Preview deployments
+];
+
+// Socket.io configuration with CORS
 const io = socketIo(server, {
     cors: {
-        origin: "https://real-time-polling-system-frontend.vercel.app",
+        origin: function(origin, callback) {
+            // Allow requests with no origin (mobile apps, Postman, etc.)
+            if (!origin) return callback(null, true);
+
+            // Check if origin matches any allowed pattern
+            const isAllowed = allowedOrigins.some(allowed => {
+                if (allowed.includes('*')) {
+                    // Handle wildcard patterns
+                    const regex = new RegExp(allowed.replace('*', '.*'));
+                    return regex.test(origin);
+                }
+                return allowed === origin;
+            });
+
+            if (isAllowed) {
+                callback(null, true);
+            } else {
+                console.log('❌ Blocked by CORS:', origin);
+                callback(new Error('Not allowed by CORS'));
+            }
+        },
         methods: ['GET', 'POST', 'PUT', 'DELETE'],
         credentials: true,
+        allowedHeaders: ['Content-Type', 'Authorization'],
     },
 });
 
 // Initialize socket handler
 socketHandler(io);
 
-// Middleware
+// Express CORS middleware - MUST BE BEFORE ROUTES
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000'],
+    origin: function(origin, callback) {
+        // Allow requests with no origin (mobile apps, Postman, etc.)
+        if (!origin) return callback(null, true);
+
+        // Check if origin matches any allowed pattern
+        const isAllowed = allowedOrigins.some(allowed => {
+            if (allowed.includes('*')) {
+                const regex = new RegExp(allowed.replace('*', '.*'));
+                return regex.test(origin);
+            }
+            return allowed === origin;
+        });
+
+        if (isAllowed) {
+            callback(null, true);
+        } else {
+            console.log('❌ Blocked by CORS:', origin);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+// Handle preflight requests
+app.options('*', cors());
+
+// Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Request logging middleware
 app.use((req, res, next) => {
-    console.log(`${req.method} ${req.path}`);
+    console.log(`${req.method} ${req.path} - Origin: ${req.get('origin') || 'none'}`);
     next();
 });
 
@@ -56,6 +111,7 @@ app.get('/api/health', (req, res) => {
         success: true,
         message: 'Server is running',
         timestamp: new Date().toISOString(),
+        cors: 'enabled',
     });
 });
 
@@ -65,6 +121,7 @@ app.get('/', (req, res) => {
         success: true,
         message: 'Intervue Poll API',
         version: '1.0.0',
+        cors: 'enabled',
     });
 });
 
@@ -88,9 +145,10 @@ server.listen(PORT, () => {
   ║   Intervue Poll Server Running        ║
   ║   Port: ${PORT}                       ║
   ║   Environment: ${process.env.NODE_ENV || 'development'}            ║
+  ║   CORS: Enabled                       ║
   ╚═══════════════════════════════════════╝
   `);
     console.log(`API: http://localhost:${PORT}/api`);
     console.log(`Socket.io: Connected and listening`);
-    console.log(`Accepting connections from: http://localhost:5173`);
+    console.log(`Allowed origins:`, allowedOrigins);
 });

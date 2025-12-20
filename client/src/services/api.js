@@ -2,9 +2,8 @@
 import axios from 'axios';
 
 // Fix for process.env not being defined
-const API_URL = (typeof process !== 'undefined' && process.env.VITE_API_URL) ?
-    process.env.VITE_API_URL :
-    'http://localhost:5000/api';
+const API_URL =
+    import.meta.env.VITE_API_URL
 
 const api = axios.create({
     baseURL: API_URL,

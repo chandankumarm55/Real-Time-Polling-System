@@ -17,6 +17,7 @@ const ChatPopup = ({ userName, userRole }) => {
     const [participants, setParticipants] = useState([]);
     const { socketService, socket } = useSocket();
     const messagesEndRef = useRef(null);
+    const messagesContainerRef = useRef(null);
     const listenersSetUp = useRef(false);
 
     // Set up socket listeners
@@ -69,6 +70,13 @@ const ChatPopup = ({ userName, userRole }) => {
         scrollToBottom();
     }, [messages]);
 
+    // Scroll to bottom when chat is opened
+    useEffect(() => {
+        if (isOpen && activeTab === 'chat') {
+            setTimeout(() => scrollToBottom(), 100);
+        }
+    }, [isOpen, activeTab]);
+
     const loadChatHistory = async () => {
         try {
             const response = await chatAPI.getHistory(50);
@@ -83,6 +91,8 @@ const ChatPopup = ({ userName, userRole }) => {
                 }),
             }));
             setMessages(chatHistory);
+            // Scroll to bottom after loading history
+            setTimeout(() => scrollToBottom(), 100);
         } catch (error) {
             console.error('Error loading chat history:', error);
         }
@@ -106,7 +116,13 @@ const ChatPopup = ({ userName, userRole }) => {
     };
 
     const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+        // Fallback: scroll container to bottom
+        if (messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        }
     };
 
     const handleSend = () => {
@@ -114,6 +130,8 @@ const ChatPopup = ({ userName, userRole }) => {
 
         socketService.sendChatMessage(userName, message.trim(), userRole);
         setMessage('');
+        // Scroll to bottom after sending
+        setTimeout(() => scrollToBottom(), 100);
     };
 
     const handleKeyPress = (e) => {
@@ -125,7 +143,6 @@ const ChatPopup = ({ userName, userRole }) => {
 
     const handleKickStudent = (studentId) => {
         socketService.kickStudent(studentId);
-
     };
 
     const isMyMessage = (msg) => {
@@ -137,6 +154,9 @@ const ChatPopup = ({ userName, userRole }) => {
         setActiveTab(tab);
         if (tab === 'participants') {
             loadParticipants();
+        } else if (tab === 'chat') {
+            // Scroll to bottom when switching to chat tab
+            setTimeout(() => scrollToBottom(), 100);
         }
     };
 
@@ -208,7 +228,10 @@ const ChatPopup = ({ userName, userRole }) => {
                     { activeTab === 'chat' && (
                         <>
                             {/* Messages Area */ }
-                            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+                            <div
+                                ref={ messagesContainerRef }
+                                className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50"
+                            >
                                 { messages.length === 0 ? (
                                     <div className="text-center text-gray-500 mt-8">
                                         No messages yet. Start the conversation!
@@ -298,7 +321,6 @@ const ChatPopup = ({ userName, userRole }) => {
                                                 >
                                                     Kick out
                                                 </button>
-
                                             ) }
                                         </div>
                                     )) }

@@ -44,7 +44,7 @@ const StudentDashboard = () => {
 
             setHasAnswered(false);
             setCurrentPage('question');
-            toast.success('New question received!');
+
         };
 
         const handleResultsUpdate = (data) => {
@@ -71,8 +71,7 @@ const StudentDashboard = () => {
         };
 
         const handleQuestionTimeUp = (data) => {
-            console.log('⏰ Time up received:', data);
-            toast.error('Time is up!');
+
 
             // Update question with final results
             setCurrentQuestion((prev) => {
@@ -98,7 +97,7 @@ const StudentDashboard = () => {
 
             // If teacher left, go back to waiting page
             if (data.teacherLeft) {
-                toast.info('Teacher has left the session');
+
                 setCurrentPage('waiting');
                 setCurrentQuestion(null);
                 setHasAnswered(false);
@@ -132,7 +131,7 @@ const StudentDashboard = () => {
 
         const handleError = (err) => {
             console.error('❌ Socket error:', err);
-            toast.error(err.message || 'An error occurred');
+
         };
 
         socket.on('question:new', handleQuestionNew);
@@ -172,7 +171,6 @@ const StudentDashboard = () => {
 
             socketService.studentJoin(name);
 
-            toast.success(`Welcome, ${name}!`);
 
             // Always start at waiting page
             setCurrentPage('waiting');
@@ -194,14 +192,13 @@ const StudentDashboard = () => {
         socketService.submitAnswer(currentQuestion._id, optionIndex);
         setHasAnswered(true);
         setCurrentPage('results');
-        toast.success('Answer submitted successfully!');
+
     };
 
     return (
         <div className="min-h-screen bg-gray-50">
             <Toaster position="top-right" />
 
-            { studentName && <Header userName={ studentName } userRole="student" /> }
 
             { currentPage === 'name-entry' && (
                 <StudentNameEntry onSubmit={ handleNameSubmit } isLoading={ isRegistering } />
@@ -229,7 +226,9 @@ const StudentDashboard = () => {
 
             { currentPage === 'kicked' && <StudentKickedPage /> }
 
-            { studentName && <ChatPopup userName={ studentName } userRole="student" /> }
+            { studentName && currentPage !== 'kicked' && (
+                <ChatPopup userName={ studentName } userRole="student" />
+            ) }
         </div>
     );
 };

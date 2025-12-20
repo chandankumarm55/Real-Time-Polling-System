@@ -124,9 +124,8 @@ const ChatPopup = ({ userName, userRole }) => {
     };
 
     const handleKickStudent = (studentId) => {
-        if (window.confirm('Are you sure you want to kick this student?')) {
-            socketService.kickStudent(studentId);
-        }
+        socketService.kickStudent(studentId);
+
     };
 
     const isMyMessage = (msg) => {
@@ -295,10 +294,11 @@ const ChatPopup = ({ userName, userRole }) => {
                                             { userRole === 'teacher' && (
                                                 <button
                                                     onClick={ () => handleKickStudent(participant.socketId) }
-                                                    className="text-red-500 text-sm hover:underline font-medium"
+                                                    className="text-[rgba(29,104,189,1)] text-sm hover:underline font-medium"
                                                 >
                                                     Kick out
                                                 </button>
+
                                             ) }
                                         </div>
                                     )) }

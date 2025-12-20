@@ -1,5 +1,13 @@
-// src/components/student/StudentNameEntry.jsx
 import React, { useState } from 'react';
+
+const colors = {
+    primary: '#7765DA',
+    secondary: '#5767D0',
+    accent: '#4F0DCE',
+    lightGray: '#F2F2F2',
+    darkGray: '#373737',
+    mediumGray: '#6E6E6E',
+};
 
 const StudentNameEntry = ({ onSubmit, isLoading = false }) => {
     const [name, setName] = useState('');
@@ -12,32 +20,45 @@ const StudentNameEntry = ({ onSubmit, isLoading = false }) => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-            <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
+        <div className="min-h-screen bg-white flex items-center justify-center p-8">
+            <div className="w-full max-w-md">
+                {/* Badge */ }
+                <div className="flex justify-center mb-6">
+                    <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white 
+                        px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 shadow-sm">
+                        <span className="text-sm">✦</span>
+                        Intervue Poll
+                    </div>
+                </div>
+
+                {/* Heading */ }
                 <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-gray-800 mb-2">
-                        Welcome Student! 👋
+                    <h1 className="text-3xl font-bold mb-3" style={ { color: colors.darkGray } }>
+                        Let's Get Started
                     </h1>
-                    <p className="text-gray-600">
-                        Enter your name to join the session
+                    <p className="text-sm leading-relaxed" style={ { color: colors.mediumGray } }>
+                        If you're a student, you'll be able to <span className="font-semibold">submit your answers</span>, participate in live polls, and see how your responses compare with your classmates
                     </p>
                 </div>
 
+                {/* Form */ }
                 <form onSubmit={ handleSubmit } className="space-y-6">
                     <div>
                         <label
                             htmlFor="name"
-                            className="block text-sm font-medium text-gray-700 mb-2"
+                            className="block text-sm font-semibold mb-2"
+                            style={ { color: colors.darkGray } }
                         >
-                            Your Name
+                            Enter your Name
                         </label>
                         <input
                             type="text"
                             id="name"
                             value={ name }
                             onChange={ (e) => setName(e.target.value) }
-                            placeholder="Enter your name"
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                            placeholder="Rahul Bajaj"
+                            className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:border-purple-400 transition-colors"
+                            style={ { backgroundColor: colors.lightGray } }
                             required
                             disabled={ isLoading }
                             autoFocus
@@ -47,10 +68,8 @@ const StudentNameEntry = ({ onSubmit, isLoading = false }) => {
                     <button
                         type="submit"
                         disabled={ !name.trim() || isLoading }
-                        className={ `w-full py-3 px-4 rounded-lg font-medium text-white transition-all duration-200 ${!name.trim() || isLoading
-                                ? 'bg-gray-400 cursor-not-allowed'
-                                : 'bg-blue-600 hover:bg-blue-700 active:scale-95'
-                            }` }
+                        style={ { backgroundColor: colors.primary } }
+                        className="w-full py-3 px-4 rounded-full font-medium text-white transition-all duration-200 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         { isLoading ? (
                             <span className="flex items-center justify-center">
@@ -77,14 +96,10 @@ const StudentNameEntry = ({ onSubmit, isLoading = false }) => {
                                 Joining...
                             </span>
                         ) : (
-                            'Join Session'
+                            'Continue'
                         ) }
                     </button>
                 </form>
-
-                <div className="mt-6 text-center text-sm text-gray-500">
-                    Make sure your internet connection is stable
-                </div>
             </div>
         </div>
     );

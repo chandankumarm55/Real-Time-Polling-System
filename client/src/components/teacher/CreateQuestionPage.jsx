@@ -73,7 +73,7 @@ const CreateQuestionPage = ({ onAskQuestion, studentsCount = 0 }) => {
     };
 
     return (
-        <div className="min-h-screen bg-white p-8 pt-24">
+        <div className="min-h-screen bg-white p-8 pt-12">
             <div className="max-w-4xl mx-auto">
                 <div className="flex justify-between items-start mb-2">
                     <h1 className="text-3xl font-bold" style={ { color: colors.darkGray } }>
@@ -144,7 +144,7 @@ const CreateQuestionPage = ({ onAskQuestion, studentsCount = 0 }) => {
                         maxLength={ 200 }
                     />
                     <div className="text-right text-sm text-gray-500 mt-1">
-                        { question.length }/200
+                        { question.length }/100
                     </div>
                 </div>
 
@@ -211,10 +211,11 @@ const CreateQuestionPage = ({ onAskQuestion, studentsCount = 0 }) => {
                         )) }
                     </div>
 
+                    {/* Add More Option Button with Border */ }
                     { options.length < 6 && (
                         <button
                             onClick={ addOption }
-                            className="text-purple-600 font-medium text-sm mt-3 hover:underline"
+                            className="text-purple-600 font-medium text-sm mt-4 px-4 py-2 border border-purple-300 rounded-lg hover:bg-purple-50 transition-colors"
                         >
                             + Add More option
                         </button>

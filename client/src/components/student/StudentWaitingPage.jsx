@@ -1,4 +1,3 @@
-// src/components/student/StudentWaitingPage.jsx
 import React from 'react';
 
 const colors = {
@@ -9,22 +8,20 @@ const colors = {
 
 const StudentWaitingPage = ({ studentName }) => {
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="min-h-screen flex items-center justify-center bg-white p-6">
             <div className="w-full max-w-2xl text-center">
-                {/* Logo Badge */ }
-                <div className="flex justify-center mb-12">
-                    <div
-                        className="px-4 py-2 rounded-full text-white text-sm font-medium flex items-center gap-2"
-                        style={ { backgroundColor: colors.primary } }
-                    >
-                        <span className="text-lg">✦</span>
-                        <span>Intervue Poll</span>
+                {/* Badge */ }
+                <div className="flex justify-center mb-8">
+                    <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white 
+                        px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 shadow-sm">
+                        <span className="text-sm">✦</span>
+                        Intervue Poll
                     </div>
                 </div>
 
                 {/* Loading Spinner */ }
                 <div className="mb-8 flex justify-center">
-                    <div className="relative w-20 h-20">
+                    <div className="relative w-16 h-16">
                         <div
                             className="absolute inset-0 rounded-full border-4 border-t-transparent animate-spin"
                             style={ { borderColor: colors.primary, borderTopColor: 'transparent' } }
@@ -32,8 +29,8 @@ const StudentWaitingPage = ({ studentName }) => {
                     </div>
                 </div>
 
-                {/* Message */ }
-                <h2 className="text-2xl font-bold mb-2" style={ { color: colors.darkGray } }>
+
+                <h2 className="text-xl font-medium" style={ { color: colors.darkGray } }>
                     Wait for the teacher to ask questions..
                 </h2>
             </div>

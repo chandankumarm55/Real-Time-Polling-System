@@ -1,4 +1,3 @@
-// src/components/teacher/PollHistoryPage.jsx
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { questionAPI } from '../../services/api';
@@ -45,7 +44,7 @@ const PollHistoryPage = ({ onBack }) => {
                         <ArrowLeft size={ 24 } style={ { color: colors.primary } } />
                     </button>
                     <h1 className="text-3xl font-bold" style={ { color: colors.darkGray } }>
-                        Poll History
+                        View Poll History
                     </h1>
                 </div>
 

@@ -63,7 +63,7 @@ const WelcomePage = ({ onSelectRole }) => {
                         onClick={ () => selectedRole && onSelectRole(selectedRole) }
                         disabled={ !selectedRole }
                         style={ { backgroundColor: colors.primary } }
-                        className="px-12 py-3 rounded-full text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+                        className="px-12 py-3 rounded-full text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity hover:pointer"
                     >
                         Continue
                     </button>

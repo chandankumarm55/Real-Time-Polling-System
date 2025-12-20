@@ -19,7 +19,7 @@ const LiveQuestionPage = ({ questionData, onNewQuestion, onViewHistory, students
                 <div className="flex justify-between items-start mb-8">
                     <div>
                         <h1 className="text-2xl font-bold mb-2" style={ { color: colors.darkGray } }>
-                            Live Question
+                            Question
                         </h1>
                         {/* Progress Indicator */ }
                         <div className="flex items-center gap-2">
@@ -51,7 +51,7 @@ const LiveQuestionPage = ({ questionData, onNewQuestion, onViewHistory, students
                 </div>
 
                 <div className="grid lg:grid-cols-3 gap-6">
-                    {/* Question and Results */ }
+
                     <div className="lg:col-span-2">
                         <div
                             className="text-white p-6 rounded-t-2xl"
@@ -108,43 +108,7 @@ const LiveQuestionPage = ({ questionData, onNewQuestion, onViewHistory, students
                         ) }
                     </div>
 
-                    {/* Participants Panel */ }
-                    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
-                        <div className="border-b border-gray-200">
-                            <div className="py-3 px-4 font-semibold text-center" style={ { color: colors.primary } }>
-                                Participants ({ students.length })
-                            </div>
-                        </div>
 
-                        <div className="p-4 h-96 overflow-y-auto">
-                            { students.length === 0 ? (
-                                <div className="text-center text-gray-500 mt-8">
-                                    No students joined yet
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    <div className="flex justify-between items-center text-sm text-gray-600 mb-4 pb-2 border-b">
-                                        <span>Name</span>
-                                        <span>Action</span>
-                                    </div>
-                                    { students.map((student) => (
-                                        <div
-                                            key={ student.socketId || student._id }
-                                            className="flex justify-between items-center py-2 hover:bg-gray-50 rounded px-2"
-                                        >
-                                            <span className="font-medium">{ student.name }</span>
-                                            <button
-                                                onClick={ () => onKickStudent(student.socketId) }
-                                                className="text-red-500 text-sm hover:underline"
-                                            >
-                                                Kick out
-                                            </button>
-                                        </div>
-                                    )) }
-                                </div>
-                            ) }
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>

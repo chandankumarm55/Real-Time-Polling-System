@@ -30,11 +30,22 @@ const StudentQuestionPage = ({ question, studentName, onSubmit, hasAnswered }) =
     }, [hasAnswered, timeLeft]);
 
     const handleOptionClick = (optionId) => {
-        // Can't click if already answered OR time is up
-        if (hasAnswered || timeLeft === 0) return;
-
+        console.log('Option clicked:', optionId);
+        if (hasAnswered || timeLeft === 0) {
+            console.log('Cannot select - already answered or time up');
+            return;
+        }
+        console.log('Setting selected option to:', optionId);
         setSelectedOption(optionId);
-        onSubmit(optionId);
+    };
+
+    const handleSubmit = () => {
+        console.log('Submit clicked, selected option:', selectedOption);
+        if (selectedOption !== null && !hasAnswered && timeLeft > 0) {
+            onSubmit(selectedOption);
+        } else {
+            console.log('Cannot submit:', { selectedOption, hasAnswered, timeLeft });
+        }
     };
 
     const formatTime = (seconds) => {
@@ -49,20 +60,19 @@ const StudentQuestionPage = ({ question, studentName, onSubmit, hasAnswered }) =
         return 'text-gray-700';
     };
 
-    // Check if disabled (answered or timed out)
     const isDisabled = hasAnswered || timeLeft === 0;
 
     return (
-        <div className="min-h-screen bg-gray-50 pt-24 pb-12 px-6">
+        <div className="min-h-screen bg-white pt-24 pb-12 px-6">
             <div className="max-w-3xl mx-auto">
                 {/* Question Header */ }
                 <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-xl font-semibold" style={ { color: colors.darkGray } }>
-                        Question { question.questionNumber }
+                    <h2 className="text-lg font-semibold" style={ { color: colors.darkGray } }>
+                        Question { question.questionNumber || 1 }
                     </h2>
                     <div className={ `flex items-center gap-2 font-semibold ${getTimerColor()}` }>
-                        <Clock size={ 20 } />
-                        <span className="text-lg">{ formatTime(timeLeft) }</span>
+                        <Clock size={ 18 } />
+                        <span className="text-base">{ formatTime(timeLeft) }</span>
                     </div>
                 </div>
 
@@ -84,55 +94,73 @@ const StudentQuestionPage = ({ question, studentName, onSubmit, hasAnswered }) =
                     </div>
                 ) }
 
-                {/* Question Box */ }
+                {/* Question Box with Gradient */ }
                 <div
-                    className="rounded-2xl p-6 mb-6"
-                    style={ { backgroundColor: colors.darkGray } }
+                    className="rounded-xl p-5 mb-6"
+                    style={ {
+                        background: 'linear-gradient(135deg, #343434 0%, #6E6E6E 100%)'
+                    } }
                 >
-                    <p className="text-white text-lg font-medium">{ question.text }</p>
+                    <p className="text-white text-base font-medium">{ question.text }</p>
                 </div>
 
                 {/* Options */ }
-                <div className="space-y-4 mb-8">
-                    { question.options.map((option) => (
-                        <div
-                            key={ option.id }
-                            onClick={ () => handleOptionClick(option.id) }
-                            className={ `flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${isDisabled
-                                ? 'cursor-not-allowed opacity-70'
-                                : 'cursor-pointer hover:border-gray-300 hover:shadow-md'
-                                } ${selectedOption === option.id
-                                    ? 'border-purple-600 bg-purple-50'
-                                    : 'border-gray-200 bg-white'
-                                }` }
-                        >
-                            <div
-                                className={ `w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedOption === option.id
-                                    ? 'border-purple-600'
-                                    : 'border-gray-300'
+                <div className="space-y-3 mb-6">
+                    { question.options && question.options.map((option, index) => {
+                        const optionId = option.id !== undefined ? option.id : index;
+                        const isSelected = selectedOption === optionId;
+
+                        return (
+                            <button
+                                key={ optionId }
+                                type="button"
+                                onClick={ () => handleOptionClick(optionId) }
+                                disabled={ isDisabled }
+                                className={ `w-full flex items-center gap-3 p-4 rounded-lg border transition-all ${isDisabled
+                                    ? 'cursor-not-allowed opacity-70'
+                                    : 'cursor-pointer hover:border-purple-300 hover:bg-purple-50'
+                                    } ${isSelected
+                                        ? 'border-purple-600 bg-purple-50'
+                                        : 'border-gray-200 bg-white'
                                     }` }
                             >
-                                { selectedOption === option.id && (
-                                    <div
-                                        className="w-3 h-3 rounded-full"
-                                        style={ { backgroundColor: colors.primary } }
-                                    ></div>
-                                ) }
-                            </div>
-                            <span
-                                className="text-base font-medium"
-                                style={ { color: colors.darkGray } }
-                            >
-                                { option.text }
-                            </span>
-                        </div>
-                    )) }
+                                <div
+                                    className={ `w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-semibold transition-all ${isSelected
+                                        ? 'text-white'
+                                        : 'text-gray-400 border-2 border-gray-300'
+                                        }` }
+                                    style={ isSelected ? { backgroundColor: colors.primary } : {} }
+                                >
+                                    { index + 1 }
+                                </div>
+                                <span
+                                    className="text-sm font-medium text-left"
+                                    style={ { color: colors.darkGray } }
+                                >
+                                    { option.text }
+                                </span>
+                            </button>
+                        );
+                    }) }
+                </div>
+
+                {/* Submit Button */ }
+                <div className="flex justify-center">
+                    <button
+                        type="button"
+                        onClick={ handleSubmit }
+                        disabled={ selectedOption === null || hasAnswered || timeLeft === 0 }
+                        style={ { backgroundColor: colors.primary } }
+                        className="px-12 py-3 rounded-full text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Submit
+                    </button>
                 </div>
 
                 {/* Info Message */ }
                 { hasAnswered && (
-                    <div className="text-center">
-                        <p className="text-lg font-semibold text-green-600">
+                    <div className="text-center mt-6">
+                        <p className="text-base font-semibold text-green-600">
                             ✓ Answer submitted! Waiting for results...
                         </p>
                     </div>

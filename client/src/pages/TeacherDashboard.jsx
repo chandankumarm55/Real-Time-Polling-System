@@ -57,7 +57,7 @@ const TeacherDashboard = () => {
             });
             setCurrentPage('live-question');
             setCanCreateQuestion(false);
-            toast.success('Question created successfully!');
+
         };
 
         const handleResultsUpdate = (data) => {
@@ -101,18 +101,18 @@ const TeacherDashboard = () => {
         const handleQuestionEnded = () => {
             console.log('🏁 Question ended');
             setCanCreateQuestion(true);
-            toast.success('All students have answered!');
+
         };
 
         const handleStudentJoined = (data) => {
             console.log('👨‍🎓 Student joined:', data);
-            toast.success(`${data.name} joined the session`);
+
             socketService.getActiveStudents();
         };
 
         const handleStudentLeft = (data) => {
             console.log('👋 Student left:', data);
-            toast.info(`${data.name} left the session`);
+
             socketService.getActiveStudents();
         };
 

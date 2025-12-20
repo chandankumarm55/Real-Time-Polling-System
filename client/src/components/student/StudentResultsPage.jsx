@@ -8,80 +8,79 @@ const colors = {
 
 const StudentResultsPage = ({ question, studentName }) => {
     return (
-        <div className="min-h-screen bg-gray-50 pt-24 pb-12 px-6">
+        <div className="min-h-screen bg-white pt-24 pb-12 px-6">
             <div className="max-w-3xl mx-auto">
                 {/* Question Header */ }
-                <div className="mb-6">
-                    <h2 className="text-xl font-semibold" style={ { color: colors.darkGray } }>
-                        Question Results
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-semibold" style={ { color: colors.darkGray } }>
+                        Question { question.questionNumber || 1 }
                     </h2>
+                    <div className="flex items-center gap-2 text-red-600 font-semibold">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12 6 12 12 16 14" />
+                        </svg>
+                        <span className="text-base">00:15</span>
+                    </div>
                 </div>
 
-                {/* Question Box */ }
+                {/* Question Box with Gradient */ }
                 <div
-                    className="rounded-2xl p-6 mb-6"
-                    style={ { backgroundColor: colors.darkGray } }
+                    className="rounded-xl p-5 mb-6"
+                    style={ {
+                        background: 'linear-gradient(135deg, #343434 0%, #6E6E6E 100%)'
+                    } }
                 >
-                    <p className="text-white text-lg font-medium">{ question.text }</p>
+                    <p className="text-white text-base font-medium">{ question.text }</p>
                 </div>
 
                 {/* Results */ }
-                <div className="space-y-4 mb-8">
-                    { question.options.map((option) => (
-                        <div
-                            key={ option.id }
-                            className="bg-white rounded-2xl p-5 border-2 border-gray-200"
-                        >
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-3">
-                                    <div
-                                        className="w-6 h-6 rounded-full flex items-center justify-center"
-                                        style={ { backgroundColor: colors.primary } }
-                                    >
-                                        <div className="w-3 h-3 rounded-full bg-white"></div>
+                <div className="space-y-3 mb-8 border border-gray-200 rounded-xl p-4 bg-white">
+                    { question.options && question.options.map((option, index) => {
+                        const percentage = option.percentage || 0;
+
+                        return (
+                            <div
+                                key={ option.id || index }
+                                className="relative h-12 rounded-lg overflow-hidden border border-gray-200"
+                                style={ {
+                                    background: `linear-gradient(to right, ${colors.primary} ${percentage}%, white ${percentage}%)`
+                                } }
+                            >
+                                <div className="absolute inset-0 flex items-center justify-between px-4">
+                                    <div className="flex items-center gap-3 relative z-10">
+                                        <div
+                                            className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 border-2 border-white"
+                                            style={ { backgroundColor: colors.primary } }
+                                        >
+                                            { index + 1 }
+                                        </div>
+                                        <span
+                                            className="text-sm font-medium"
+                                            style={ { color: colors.darkGray } }
+                                        >
+                                            { option.text }
+                                        </span>
                                     </div>
-                                    <span
-                                        className="text-base font-medium"
-                                        style={ { color: colors.darkGray } }
-                                    >
-                                        { option.text }
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-sm text-gray-600">
-                                        { option.votes || 0 } votes
-                                    </span>
-                                    <span
-                                        className="font-bold text-lg"
-                                        style={ { color: colors.darkGray } }
-                                    >
-                                        { option.percentage || 0 }%
-                                    </span>
+                                    <div className="relative z-10">
+                                        <span
+                                            className="font-bold text-base"
+                                            style={ { color: colors.darkGray } }
+                                        >
+                                            { percentage }%
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                                <div
-                                    className="h-full rounded-full transition-all duration-500 ease-out"
-                                    style={ {
-                                        width: `${option.percentage || 0}%`,
-                                        backgroundColor: colors.primary,
-                                    } }
-                                ></div>
-                            </div>
-                        </div>
-                    )) }
+                        );
+                    }) }
                 </div>
 
                 {/* Waiting Message */ }
                 <div className="text-center">
-                    <div className="inline-block">
-                        <div className="flex items-center gap-3 bg-white px-6 py-4 rounded-full shadow-md">
-                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                            <p className="text-lg font-semibold" style={ { color: colors.darkGray } }>
-                                Wait for the teacher to ask a new question..
-                            </p>
-                        </div>
-                    </div>
+                    <p className="text-base font-medium" style={ { color: colors.darkGray } }>
+                        Wait for the teacher to ask a new question..
+                    </p>
                 </div>
             </div>
         </div>

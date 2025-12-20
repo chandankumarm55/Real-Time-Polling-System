@@ -21,9 +21,9 @@ connectDB();
 
 // CORS allowed origins - ADD YOUR VERCEL URL HERE
 const allowedOrigins = [
-    'https://real-time-polling-system-frontend.vercel.app',
     'http://localhost:5173',
     'http://localhost:3000',
+    'https://real-time-polling-system-frontend.vercel.app', // Your Vercel URL
     'https://real-time-polling-system-frontend-*.vercel.app', // Preview deployments
 ];
 
@@ -87,8 +87,17 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Handle preflight requests
-app.options('*', cors());
+// Handle preflight requests for all routes
+app.use((req, res, next) => {
+    if (req.method === 'OPTIONS') {
+        res.header('Access-Control-Allow-Origin', req.get('origin') || '*');
+        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        res.header('Access-Control-Allow-Credentials', 'true');
+        return res.sendStatus(200);
+    }
+    next();
+});
 
 // Body parsing middleware
 app.use(express.json());

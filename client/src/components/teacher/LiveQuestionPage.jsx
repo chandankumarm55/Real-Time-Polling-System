@@ -21,24 +21,7 @@ const LiveQuestionPage = ({ questionData, onNewQuestion, onViewHistory, students
                         <h1 className="text-2xl font-bold mb-2" style={ { color: colors.darkGray } }>
                             Question
                         </h1>
-                        {/* Progress Indicator */ }
-                        <div className="flex items-center gap-2">
-                            { allAnswered ? (
-                                <div className="flex items-center gap-2 text-green-600">
-                                    <CheckCircle size={ 18 } />
-                                    <span className="text-sm font-medium">
-                                        All students answered ({ answeredCount }/{ expectedCount })
-                                    </span>
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-2 text-orange-600">
-                                    <AlertCircle size={ 18 } />
-                                    <span className="text-sm font-medium">
-                                        Waiting for { remainingCount } student{ remainingCount !== 1 ? 's' : '' } ({ answeredCount }/{ expectedCount })
-                                    </span>
-                                </div>
-                            ) }
-                        </div>
+
                     </div>
                     <button
                         onClick={ onViewHistory }

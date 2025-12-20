@@ -23,6 +23,25 @@ module.exports = (io) => {
         currentQuestionId = null;
     };
 
+    // Helper function to broadcast results immediately
+    const broadcastResults = (question) => {
+        const resultsPayload = {
+            questionId: question._id,
+            options: question.options.map(opt => ({
+                text: opt.text,
+                votes: opt.votes,
+                percentage: opt.percentage,
+                isCorrect: opt.isCorrect,
+            })),
+            totalVotes: question.totalVotes,
+            expectedStudents: question.expectedStudents,
+        };
+
+        // Broadcast to EVERYONE immediately
+        io.emit('results:update', resultsPayload);
+        console.log('📊 Results broadcasted to all clients');
+    };
+
     io.on('connection', (socket) => {
         console.log('✅ Connected:', socket.id);
 
@@ -173,7 +192,7 @@ module.exports = (io) => {
                         if (remaining > 0) {
                             socket.emit('error', {
                                 message: `Cannot create new question. ${remaining} student(s) haven't answered yet.`,
-                                remainingStudents: remaining
+                                remainingStudents: remaining,
                             });
                             return;
                         }
@@ -191,13 +210,13 @@ module.exports = (io) => {
                 if (expectedStudents === 0) {
                     socket.emit('error', {
                         message: 'Cannot create question. No students in the room.',
-                        noStudents: true
+                        noStudents: true,
                     });
                     return;
                 }
 
                 // Create question
-                const formattedOptions = options.map(opt => ({
+                const formattedOptions = options.map((opt) => ({
                     text: typeof opt === 'string' ? opt : opt.text,
                     isCorrect: opt.isCorrect || false,
                     votes: 0,
@@ -240,15 +259,16 @@ module.exports = (io) => {
                         const timedOutStudents = Array.from(participantTracker.keys());
 
                         console.log(`⏰ Timer expired`);
-                        console.log(`🧮 Timed out students: ${timedOutStudents.length}`);
+                        console.log(`🧮 Students who didn't answer: ${timedOutStudents.length}`);
 
-                        // Count timed-out students as responses
-                        q.totalVotes += timedOutStudents.length;
+                        // DO NOT count timed-out students in totalVotes
+                        // Keep totalVotes as is (only actual votes count)
 
                         q.isActive = false;
                         q.allStudentsAnswered = true;
                         q.endedAt = new Date();
 
+                        // Recalculate percentages based on actual votes only
                         q.calculatePercentages();
                         await q.save();
 
@@ -264,7 +284,7 @@ module.exports = (io) => {
 
                         const resultsPayload = {
                             questionId: q._id,
-                            results: q.options.map(opt => ({
+                            results: q.options.map((opt) => ({
                                 text: opt.text,
                                 votes: opt.votes,
                                 percentage: opt.percentage,
@@ -283,7 +303,6 @@ module.exports = (io) => {
                         console.error('❌ Timeout handler error:', err);
                     }
                 }, timeLimit * 1000);
-
             } catch (error) {
                 console.error('❌ Error creating question:', error);
                 socket.emit('error', { message: 'Failed to create question' });
@@ -301,7 +320,7 @@ module.exports = (io) => {
                 }
 
                 // Check already voted
-                const alreadyVoted = question.options.some(opt =>
+                const alreadyVoted = question.options.some((opt) =>
                     opt.votedBy.includes(socket.id)
                 );
 
@@ -318,9 +337,16 @@ module.exports = (io) => {
                 question.options[optionIndex].votedBy.push(socket.id);
                 question.totalVotes += 1;
 
+                // Recalculate percentages based on ACTUAL votes (totalVotes)
                 question.calculatePercentages();
+                await question.save();
 
-                console.log(`✅ Answer recorded. Votes: ${question.totalVotes}, Remaining: ${participantTracker.size}`);
+                console.log(
+                    `✅ Answer recorded. Total Votes: ${question.totalVotes}, Remaining: ${participantTracker.size}`
+                );
+
+                // Broadcast results IMMEDIATELY to everyone
+                broadcastResults(question);
 
                 // Check if all answered
                 const allAnswered = participantTracker.size === 0;
@@ -340,7 +366,7 @@ module.exports = (io) => {
                     // Send final results
                     io.emit('question:ended', {
                         questionId: question._id,
-                        results: question.options.map(opt => ({
+                        results: question.options.map((opt) => ({
                             text: opt.text,
                             votes: opt.votes,
                             percentage: opt.percentage,
@@ -351,20 +377,6 @@ module.exports = (io) => {
 
                     clearQuestionState();
                     console.log(`✅ Question ended - all students answered`);
-                } else {
-                    await question.save();
-
-                    // Send intermediate results
-                    io.emit('results:update', {
-                        questionId: question._id,
-                        options: question.options.map(opt => ({
-                            text: opt.text,
-                            votes: opt.votes,
-                            percentage: opt.percentage,
-                            isCorrect: opt.isCorrect,
-                        })),
-                        totalVotes: question.totalVotes,
-                    });
                 }
 
                 // Update student DB
@@ -380,7 +392,6 @@ module.exports = (io) => {
                 } catch (err) {
                     console.error('Error updating student answer:', err);
                 }
-
             } catch (error) {
                 console.error('❌ Error submitting answer:', error);
                 socket.emit('error', { message: 'Failed to submit answer' });

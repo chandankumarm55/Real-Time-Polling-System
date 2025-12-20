@@ -44,15 +44,16 @@ const StudentDashboard = () => {
 
             setHasAnswered(false);
             setCurrentPage('question');
-
         };
 
+        // CRITICAL FIX: Update results in real-time for students
         const handleResultsUpdate = (data) => {
-            console.log('📊 Results update received:', data);
+            console.log('📊 Student receiving results update:', data);
 
             setCurrentQuestion((prev) => {
-                if (!prev) return null;
-                return {
+                if (!prev || prev._id !== data.questionId) return prev;
+
+                const updated = {
                     ...prev,
                     options: data.options.map((opt, idx) => ({
                         id: idx,
@@ -61,6 +62,9 @@ const StudentDashboard = () => {
                         percentage: opt.percentage || 0,
                     })),
                 };
+
+                console.log('✅ Student UI updated with new results');
+                return updated;
             });
         };
 
@@ -71,7 +75,7 @@ const StudentDashboard = () => {
         };
 
         const handleQuestionTimeUp = (data) => {
-
+            console.log('⏰ Time up - moving to results');
 
             // Update question with final results
             setCurrentQuestion((prev) => {
@@ -97,7 +101,6 @@ const StudentDashboard = () => {
 
             // If teacher left, go back to waiting page
             if (data.teacherLeft) {
-
                 setCurrentPage('waiting');
                 setCurrentQuestion(null);
                 setHasAnswered(false);
@@ -131,7 +134,6 @@ const StudentDashboard = () => {
 
         const handleError = (err) => {
             console.error('❌ Socket error:', err);
-
         };
 
         socket.on('question:new', handleQuestionNew);
@@ -171,10 +173,8 @@ const StudentDashboard = () => {
 
             socketService.studentJoin(name);
 
-
             // Always start at waiting page
             setCurrentPage('waiting');
-
         } catch (err) {
             console.error('❌ Registration failed:', err);
             toast.error('Failed to join. Please try again.');
@@ -192,13 +192,11 @@ const StudentDashboard = () => {
         socketService.submitAnswer(currentQuestion._id, optionIndex);
         setHasAnswered(true);
         setCurrentPage('results');
-
     };
 
     return (
         <div className="min-h-screen bg-gray-50">
             <Toaster position="top-right" />
-
 
             { currentPage === 'name-entry' && (
                 <StudentNameEntry onSubmit={ handleNameSubmit } isLoading={ isRegistering } />

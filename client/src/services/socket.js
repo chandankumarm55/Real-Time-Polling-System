@@ -1,8 +1,7 @@
 import io from 'socket.io-client';
 
 // Fix for process.env not being defined
-const SOCKET_URL =
-    import.meta.env.VITE_SOCKET_URL
+const SOCKET_URL = "https://real-time-polling-system-389tz7lqw-chadnans-projects.vercel.app"
 
 class SocketService {
     constructor() {

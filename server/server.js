@@ -22,7 +22,7 @@ connectDB();
 // Socket.io configuration
 const io = socketIo(server, {
     cors: {
-        origin: ['http://localhost:5173', 'http://localhost:3000'],
+        origin: "https://real-time-polling-system-frontend-i8ztau41e-chadnans-projects.vercel.app",
         methods: ['GET', 'POST', 'PUT', 'DELETE'],
         credentials: true,
     },

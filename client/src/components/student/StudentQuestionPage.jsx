@@ -1,4 +1,3 @@
-// src/components/student/StudentQuestionPage.jsx
 import React, { useState, useEffect } from 'react';
 import { Clock } from 'lucide-react';
 
@@ -9,33 +8,33 @@ const colors = {
     lightGray: '#F2F2F2',
 };
 
-const StudentQuestionPage = ({ question, studentName, onSubmit }) => {
+const StudentQuestionPage = ({ question, studentName, onSubmit, hasAnswered }) => {
     const [selectedOption, setSelectedOption] = useState(null);
     const [timeLeft, setTimeLeft] = useState(question.timeLimit || 60);
 
+    // Timer countdown effect
     useEffect(() => {
-        if (timeLeft > 0) {
-            const timer = setInterval(() => {
-                setTimeLeft((prev) => {
-                    if (prev <= 1) {
-                        clearInterval(timer);
-                        if (!selectedOption) {
-                            onSubmit(null);
-                        }
-                        return 0;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
+        if (hasAnswered || timeLeft <= 0) return;
 
-            return () => clearInterval(timer);
-        }
-    }, [timeLeft, selectedOption, onSubmit]);
+        const timer = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
 
-    const handleSubmit = () => {
-        if (selectedOption) {
-            onSubmit(selectedOption);
-        }
+        return () => clearInterval(timer);
+    }, [hasAnswered, timeLeft]);
+
+    const handleOptionClick = (optionId) => {
+        // Can't click if already answered OR time is up
+        if (hasAnswered || timeLeft === 0) return;
+
+        setSelectedOption(optionId);
+        onSubmit(optionId);
     };
 
     const formatTime = (seconds) => {
@@ -43,6 +42,15 @@ const StudentQuestionPage = ({ question, studentName, onSubmit }) => {
         const secs = seconds % 60;
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
+
+    const getTimerColor = () => {
+        if (timeLeft <= 10) return 'text-red-600';
+        if (timeLeft <= 30) return 'text-orange-600';
+        return 'text-gray-700';
+    };
+
+    // Check if disabled (answered or timed out)
+    const isDisabled = hasAnswered || timeLeft === 0;
 
     return (
         <div className="min-h-screen bg-gray-50 pt-24 pb-12 px-6">
@@ -52,13 +60,29 @@ const StudentQuestionPage = ({ question, studentName, onSubmit }) => {
                     <h2 className="text-xl font-semibold" style={ { color: colors.darkGray } }>
                         Question { question.questionNumber }
                     </h2>
-                    <div
-                        className="flex items-center gap-2 text-red-600 font-semibold"
-                    >
+                    <div className={ `flex items-center gap-2 font-semibold ${getTimerColor()}` }>
                         <Clock size={ 20 } />
-                        <span>{ formatTime(timeLeft) }</span>
+                        <span className="text-lg">{ formatTime(timeLeft) }</span>
                     </div>
                 </div>
+
+                {/* Timer Warning */ }
+                { timeLeft <= 10 && timeLeft > 0 && !hasAnswered && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-red-700 text-sm font-medium text-center">
+                            ⚠️ Hurry! Only { timeLeft } seconds left
+                        </p>
+                    </div>
+                ) }
+
+                {/* Time Up Message */ }
+                { timeLeft === 0 && !hasAnswered && (
+                    <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                        <p className="text-orange-800 text-sm font-bold text-center">
+                            ⏰ Time's up! Waiting for results...
+                        </p>
+                    </div>
+                ) }
 
                 {/* Question Box */ }
                 <div
@@ -73,10 +97,13 @@ const StudentQuestionPage = ({ question, studentName, onSubmit }) => {
                     { question.options.map((option) => (
                         <div
                             key={ option.id }
-                            onClick={ () => setSelectedOption(option.id) }
-                            className={ `flex items-center gap-4 p-5 rounded-2xl border-2 cursor-pointer transition-all ${selectedOption === option.id
-                                ? 'border-purple-600 bg-purple-50'
-                                : 'border-gray-200 bg-white hover:border-gray-300'
+                            onClick={ () => handleOptionClick(option.id) }
+                            className={ `flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${isDisabled
+                                ? 'cursor-not-allowed opacity-70'
+                                : 'cursor-pointer hover:border-gray-300 hover:shadow-md'
+                                } ${selectedOption === option.id
+                                    ? 'border-purple-600 bg-purple-50'
+                                    : 'border-gray-200 bg-white'
                                 }` }
                         >
                             <div
@@ -102,17 +129,14 @@ const StudentQuestionPage = ({ question, studentName, onSubmit }) => {
                     )) }
                 </div>
 
-                {/* Submit Button */ }
-                <div className="flex justify-center">
-                    <button
-                        onClick={ handleSubmit }
-                        disabled={ !selectedOption }
-                        className="px-16 py-3 rounded-full text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
-                        style={ { backgroundColor: colors.primary } }
-                    >
-                        Submit
-                    </button>
-                </div>
+                {/* Info Message */ }
+                { hasAnswered && (
+                    <div className="text-center">
+                        <p className="text-lg font-semibold text-green-600">
+                            ✓ Answer submitted! Waiting for results...
+                        </p>
+                    </div>
+                ) }
             </div>
         </div>
     );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import StudentNameEntry from '../components/student/StudentNameEntry';
 import StudentWaitingPage from '../components/student/StudentWaitingPage';
 import StudentQuestionPage from '../components/student/StudentQuestionPage';
@@ -7,26 +7,27 @@ import StudentKickedPage from '../components/student/StudentKickedPage';
 import Header from '../components/common/Header';
 import ChatPopup from '../components/common/ChatPopup';
 import { useSocket } from '../context/SocketContext';
-import { studentAPI, questionAPI } from '../services/api';
+import { studentAPI } from '../services/api';
+import toast, { Toaster } from 'react-hot-toast';
 
 const StudentDashboard = () => {
     const [studentName, setStudentName] = useState('');
     const [currentPage, setCurrentPage] = useState('name-entry');
     const [currentQuestion, setCurrentQuestion] = useState(null);
+    const [hasAnswered, setHasAnswered] = useState(false);
     const [isRegistering, setIsRegistering] = useState(false);
 
     const { socketService, socket, isConnected } = useSocket();
+    const listenersSetUp = useRef(false);
 
-    /* ===============================
-       SOCKET LISTENERS (NO CLEANUP)
-       =============================== */
+    // Socket listeners setup
     useEffect(() => {
-        if (!socket) return;
+        if (!socket || listenersSetUp.current) return;
 
         console.log('🎧 Student socket listeners attached');
 
-        socket.on('question:new', (question) => {
-            console.log('📨 Question received:', question);
+        const handleQuestionNew = (question) => {
+            console.log('📨 New question received:', question);
 
             setCurrentQuestion({
                 _id: question._id,
@@ -35,14 +36,20 @@ const StudentDashboard = () => {
                 options: question.options.map((opt, idx) => ({
                     id: idx,
                     text: opt.text,
+                    votes: opt.votes || 0,
+                    percentage: opt.percentage || 0,
                 })),
                 timeLimit: question.timeLimit,
             });
 
+            setHasAnswered(false);
             setCurrentPage('question');
-        });
+            toast.success('New question received!');
+        };
 
-        socket.on('results:update', (data) => {
+        const handleResultsUpdate = (data) => {
+            console.log('📊 Results update received:', data);
+
             setCurrentQuestion((prev) => {
                 if (!prev) return null;
                 return {
@@ -50,30 +57,105 @@ const StudentDashboard = () => {
                     options: data.options.map((opt, idx) => ({
                         id: idx,
                         text: opt.text,
-                        votes: opt.votes,
-                        percentage: opt.percentage,
+                        votes: opt.votes || 0,
+                        percentage: opt.percentage || 0,
                     })),
                 };
             });
-        });
+        };
 
-        socket.on('student:kicked', () => {
+        const handleStudentKicked = () => {
+            console.log('👢 Student kicked');
             setCurrentPage('kicked');
-        });
+            toast.error('You have been kicked out by the teacher');
+        };
 
-        socket.on('question:ended', () => {
+        const handleQuestionTimeUp = (data) => {
+            console.log('⏰ Time up received:', data);
+            toast.error('Time is up!');
+
+            // Update question with final results
+            setCurrentQuestion((prev) => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    options: data.results.map((opt, idx) => ({
+                        id: idx,
+                        text: opt.text,
+                        votes: opt.votes || 0,
+                        percentage: opt.percentage || 0,
+                    })),
+                };
+            });
+
+            // Force move to results page
+            setHasAnswered(true);
             setCurrentPage('results');
-        });
+        };
 
-        socket.on('error', (err) => {
+        const handleQuestionEnded = (data) => {
+            console.log('🏁 Question ended', data);
+
+            // If teacher left, go back to waiting page
+            if (data.teacherLeft) {
+                toast.info('Teacher has left the session');
+                setCurrentPage('waiting');
+                setCurrentQuestion(null);
+                setHasAnswered(false);
+            } else {
+                // Update results if available
+                if (data.results) {
+                    setCurrentQuestion((prev) => {
+                        if (!prev) return null;
+                        return {
+                            ...prev,
+                            options: data.results.map((opt, idx) => ({
+                                id: idx,
+                                text: opt.text,
+                                votes: opt.votes || 0,
+                                percentage: opt.percentage || 0,
+                            })),
+                        };
+                    });
+                }
+
+                // Move to results if answered or time is up
+                if (hasAnswered || currentPage === 'results') {
+                    setCurrentPage('results');
+                } else {
+                    // If student didn't answer, show results anyway
+                    setHasAnswered(true);
+                    setCurrentPage('results');
+                }
+            }
+        };
+
+        const handleError = (err) => {
             console.error('❌ Socket error:', err);
-        });
+            toast.error(err.message || 'An error occurred');
+        };
 
-    }, [socket]);
+        socket.on('question:new', handleQuestionNew);
+        socket.on('results:update', handleResultsUpdate);
+        socket.on('student:kicked', handleStudentKicked);
+        socket.on('question:timeup', handleQuestionTimeUp);
+        socket.on('question:ended', handleQuestionEnded);
+        socket.on('error', handleError);
 
-    /* ===============================
-       STUDENT NAME SUBMIT
-       =============================== */
+        listenersSetUp.current = true;
+
+        return () => {
+            socket.off('question:new', handleQuestionNew);
+            socket.off('results:update', handleResultsUpdate);
+            socket.off('student:kicked', handleStudentKicked);
+            socket.off('question:timeup', handleQuestionTimeUp);
+            socket.off('question:ended', handleQuestionEnded);
+            socket.off('error', handleError);
+            listenersSetUp.current = false;
+        };
+    }, [socket, hasAnswered, currentPage]);
+
+    // Handle name submit
     const handleNameSubmit = async (name) => {
         if (!socket || !isConnected || isRegistering) return;
 
@@ -90,47 +172,35 @@ const StudentDashboard = () => {
 
             socketService.studentJoin(name);
 
-            /* 🔥 IMPORTANT FALLBACK */
-            const active = await questionAPI.getActive().catch(() => null);
+            toast.success(`Welcome, ${name}!`);
 
-            if (active?.data?.data) {
-                console.log('📥 Active question fetched via API');
-
-                setCurrentQuestion({
-                    _id: active.data.data._id,
-                    questionNumber: 1,
-                    text: active.data.data.questionText,
-                    options: active.data.data.options.map((opt, idx) => ({
-                        id: idx,
-                        text: opt.text,
-                    })),
-                    timeLimit: active.data.data.timeLimit,
-                });
-
-                setCurrentPage('question');
-            } else {
-                setCurrentPage('waiting');
-            }
+            // Always start at waiting page
+            setCurrentPage('waiting');
 
         } catch (err) {
             console.error('❌ Registration failed:', err);
+            toast.error('Failed to join. Please try again.');
             setCurrentPage('name-entry');
         } finally {
             setIsRegistering(false);
         }
     };
 
-    /* ===============================
-       ANSWER SUBMIT
-       =============================== */
+    // Handle answer submit
     const handleAnswerSubmit = (optionIndex) => {
-        if (!currentQuestion) return;
+        if (!currentQuestion || hasAnswered) return;
+
+        console.log('✅ Submitting answer:', optionIndex);
         socketService.submitAnswer(currentQuestion._id, optionIndex);
+        setHasAnswered(true);
         setCurrentPage('results');
+        toast.success('Answer submitted successfully!');
     };
 
     return (
         <div className="min-h-screen bg-gray-50">
+            <Toaster position="top-right" />
+
             { studentName && <Header userName={ studentName } userRole="student" /> }
 
             { currentPage === 'name-entry' && (
@@ -146,6 +216,7 @@ const StudentDashboard = () => {
                     question={ currentQuestion }
                     studentName={ studentName }
                     onSubmit={ handleAnswerSubmit }
+                    hasAnswered={ hasAnswered }
                 />
             ) }
 

@@ -1,4 +1,3 @@
-// src/components/student/StudentResultsPage.jsx
 import React from 'react';
 
 const colors = {
@@ -62,7 +61,7 @@ const StudentResultsPage = ({ question, studentName }) => {
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                                 <div
-                                    className="h-full rounded-full transition-all duration-500"
+                                    className="h-full rounded-full transition-all duration-500 ease-out"
                                     style={ {
                                         width: `${option.percentage || 0}%`,
                                         backgroundColor: colors.primary,
@@ -75,9 +74,14 @@ const StudentResultsPage = ({ question, studentName }) => {
 
                 {/* Waiting Message */ }
                 <div className="text-center">
-                    <p className="text-lg font-semibold" style={ { color: colors.darkGray } }>
-                        Wait for the teacher to ask a new question..
-                    </p>
+                    <div className="inline-block">
+                        <div className="flex items-center gap-3 bg-white px-6 py-4 rounded-full shadow-md">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            <p className="text-lg font-semibold" style={ { color: colors.darkGray } }>
+                                Wait for the teacher to ask a new question..
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

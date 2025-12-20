@@ -1,6 +1,5 @@
-// src/components/teacher/LiveQuestionPage.jsx
-import React, { useState } from 'react';
-import { Eye } from 'lucide-react';
+import React from 'react';
+import { Eye, AlertCircle, CheckCircle } from 'lucide-react';
 
 const colors = {
     primary: '#7765DA',
@@ -8,16 +7,39 @@ const colors = {
     mediumGray: '#6E6E6E',
 };
 
-const LiveQuestionPage = ({ questionData, onNewQuestion, onViewHistory, students, onKickStudent }) => {
-    const [activeTab, setActiveTab] = useState('participants');
+const LiveQuestionPage = ({ questionData, onNewQuestion, onViewHistory, students, onKickStudent, canCreateNew }) => {
+    const answeredCount = questionData.totalVotes || 0;
+    const expectedCount = questionData.expectedStudents || students.length;
+    const remainingCount = expectedCount - answeredCount;
+    const allAnswered = answeredCount >= expectedCount;
 
     return (
         <div className="min-h-screen bg-white p-8 pt-24">
             <div className="max-w-6xl mx-auto">
                 <div className="flex justify-between items-start mb-8">
-                    <h1 className="text-2xl font-bold" style={ { color: colors.darkGray } }>
-                        Live Question
-                    </h1>
+                    <div>
+                        <h1 className="text-2xl font-bold mb-2" style={ { color: colors.darkGray } }>
+                            Live Question
+                        </h1>
+                        {/* Progress Indicator */ }
+                        <div className="flex items-center gap-2">
+                            { allAnswered ? (
+                                <div className="flex items-center gap-2 text-green-600">
+                                    <CheckCircle size={ 18 } />
+                                    <span className="text-sm font-medium">
+                                        All students answered ({ answeredCount }/{ expectedCount })
+                                    </span>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2 text-orange-600">
+                                    <AlertCircle size={ 18 } />
+                                    <span className="text-sm font-medium">
+                                        Waiting for { remainingCount } student{ remainingCount !== 1 ? 's' : '' } ({ answeredCount }/{ expectedCount })
+                                    </span>
+                                </div>
+                            ) }
+                        </div>
+                    </div>
                     <button
                         onClick={ onViewHistory }
                         style={ { backgroundColor: colors.primary } }
@@ -42,7 +64,7 @@ const LiveQuestionPage = ({ questionData, onNewQuestion, onViewHistory, students
                             { questionData.options.map((option, index) => (
                                 <div key={ index } className="relative">
                                     <div
-                                        className="h-14 rounded-xl flex items-center justify-between px-4 overflow-hidden"
+                                        className="h-14 rounded-xl flex items-center justify-between px-4 overflow-hidden transition-all duration-300"
                                         style={ {
                                             background: `linear-gradient(to right, ${colors.primary} ${option.percentage}%, #f3f4f6 ${option.percentage}%)`,
                                         } }
@@ -70,12 +92,20 @@ const LiveQuestionPage = ({ questionData, onNewQuestion, onViewHistory, students
                         <div className="flex justify-center mt-8">
                             <button
                                 onClick={ onNewQuestion }
+                                disabled={ !canCreateNew && !allAnswered }
                                 style={ { backgroundColor: colors.primary } }
-                                className="px-10 py-3 rounded-full text-white font-medium hover:opacity-90 transition-opacity"
+                                className="px-10 py-3 rounded-full text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={ !canCreateNew && !allAnswered ? `Wait for ${remainingCount} more student(s) to answer` : '' }
                             >
                                 + Ask a new question
                             </button>
                         </div>
+
+                        { !canCreateNew && !allAnswered && (
+                            <p className="text-center text-sm text-orange-600 mt-3">
+                                Wait for all students to answer before creating a new question
+                            </p>
+                        ) }
                     </div>
 
                     {/* Participants Panel */ }

@@ -1,6 +1,5 @@
-// src/components/teacher/CreateQuestionPage.jsx
 import React, { useState } from 'react';
-import { ChevronDown, Trash2 } from 'lucide-react';
+import { ChevronDown, Trash2, Users } from 'lucide-react';
 
 const colors = {
     primary: '#7765DA',
@@ -9,7 +8,7 @@ const colors = {
     lightGray: '#F2F2F2',
 };
 
-const CreateQuestionPage = ({ onAskQuestion }) => {
+const CreateQuestionPage = ({ onAskQuestion, studentsCount = 0 }) => {
     const [question, setQuestion] = useState('');
     const [timeLimit, setTimeLimit] = useState(60);
     const [showTimePicker, setShowTimePicker] = useState(false);
@@ -44,7 +43,6 @@ const CreateQuestionPage = ({ onAskQuestion }) => {
     };
 
     const handleAskQuestion = () => {
-        // Validation
         if (!question.trim()) {
             alert('Please enter a question');
             return;
@@ -56,10 +54,14 @@ const CreateQuestionPage = ({ onAskQuestion }) => {
             return;
         }
 
-        // Check if at least one correct answer is selected
         const hasCorrectAnswer = filledOptions.some(opt => opt.isCorrect);
         if (!hasCorrectAnswer) {
             alert('Please mark at least one option as correct');
+            return;
+        }
+
+        if (studentsCount === 0) {
+            alert('Cannot create question. No students in the room.');
             return;
         }
 
@@ -73,12 +75,32 @@ const CreateQuestionPage = ({ onAskQuestion }) => {
     return (
         <div className="min-h-screen bg-white p-8 pt-24">
             <div className="max-w-4xl mx-auto">
-                <h1 className="text-3xl font-bold mb-2" style={ { color: colors.darkGray } }>
-                    Let's Get Started
-                </h1>
+                <div className="flex justify-between items-start mb-2">
+                    <h1 className="text-3xl font-bold" style={ { color: colors.darkGray } }>
+                        Let's Get Started
+                    </h1>
+
+                    {/* Students Count Badge */ }
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-50 border border-purple-200">
+                        <Users size={ 18 } style={ { color: colors.primary } } />
+                        <span className="font-semibold" style={ { color: colors.primary } }>
+                            { studentsCount } { studentsCount === 1 ? 'Student' : 'Students' }
+                        </span>
+                    </div>
+                </div>
+
                 <p className="mb-8" style={ { color: colors.mediumGray } }>
                     You'll have the ability to create and manage polls, ask questions, and monitor your students' responses in real-time.
                 </p>
+
+                {/* Warning if no students */ }
+                { studentsCount === 0 && (
+                    <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-yellow-800 font-medium">
+                            ⚠️ No students in the room. Wait for students to join before creating a question.
+                        </p>
+                    </div>
+                ) }
 
                 {/* Question Input */ }
                 <div className="mb-6">
@@ -153,7 +175,6 @@ const CreateQuestionPage = ({ onAskQuestion }) => {
                                     maxLength={ 100 }
                                 />
 
-                                {/* Radio buttons for correct answer */ }
                                 <div className="flex items-center gap-4">
                                     <label className="flex items-center gap-2 cursor-pointer">
                                         <input
@@ -204,8 +225,9 @@ const CreateQuestionPage = ({ onAskQuestion }) => {
                 <div className="flex justify-end">
                     <button
                         onClick={ handleAskQuestion }
+                        disabled={ studentsCount === 0 }
                         style={ { backgroundColor: colors.primary } }
-                        className="px-10 py-3 rounded-full text-white font-medium hover:opacity-90 transition-opacity"
+                        className="px-10 py-3 rounded-full text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         Ask Question
                     </button>

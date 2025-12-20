@@ -3,83 +3,165 @@ const Student = require('../models/Student');
 const Chat = require('../models/Chat');
 
 module.exports = (io) => {
-    // Store connected clients
     const connectedClients = {
         teachers: new Set(),
         students: new Map(),
     };
 
-    io.on('connection', (socket) => {
-        console.log(`✅ New connection: ${socket.id}`);
+    let questionTimer = null;
+    let currentQuestionId = null;
 
-        // TEACHER EVENTS
+    // Track participants: socketId => questionId
+    const participantTracker = new Map();
+
+    const clearQuestionState = () => {
+        if (questionTimer) {
+            clearTimeout(questionTimer);
+            questionTimer = null;
+        }
+        participantTracker.clear();
+        currentQuestionId = null;
+    };
+
+    io.on('connection', (socket) => {
+        console.log('✅ Connected:', socket.id);
+
+        /* ================= TEACHER JOIN ================= */
         socket.on('teacher:join', async() => {
             connectedClients.teachers.add(socket.id);
             socket.join('teachers');
-            console.log(`👨‍🏫 Teacher joined: ${socket.id}`);
+            console.log('👨‍🏫 Teacher joined:', socket.id);
 
+            // Send students list
             const students = await Student.find({ isActive: true, isKicked: false });
             socket.emit('students:list', students);
+
+            // Send active question if exists
+            if (currentQuestionId) {
+                const activeQuestion = await Question.findById(currentQuestionId);
+                if (activeQuestion && activeQuestion.isActive) {
+                    socket.emit('question:created', activeQuestion);
+                }
+            }
         });
 
-        // STUDENT EVENTS
+        /* ================= STUDENT JOIN ================= */
         socket.on('student:join', async({ name }) => {
             try {
-                let student = await Student.findOne({ socketId: socket.id });
+                const hasTeacher = connectedClients.teachers.size > 0;
 
-                if (student) {
+                let student = await Student.findOne({ socketId: socket.id });
+                if (!student) {
+                    student = new Student({ name, socketId: socket.id, isActive: true });
+                } else {
                     student.name = name;
                     student.isActive = true;
                     student.isKicked = false;
-                } else {
-                    student = new Student({
-                        name,
-                        socketId: socket.id,
-                        isActive: true,
-                    });
                 }
-
                 await student.save();
 
                 connectedClients.students.set(socket.id, { name, id: student._id });
                 socket.join('students');
 
                 console.log(`👨‍🎓 Student joined: ${name} (${socket.id})`);
-                console.log(`📊 Students in 'students' room: ${io.sockets.adapter.rooms.get('students')?.size || 0}`);
-                console.log(`📊 Total connected students: ${connectedClients.students.size}`);
 
                 // Notify teachers
-                io.to('teachers').emit('student:joined', {
-                    socketId: socket.id,
-                    name,
-                    id: student._id,
-                });
+                io.to('teachers').emit('student:joined', { name, socketId: socket.id });
 
+                // Update students list
                 const allStudents = await Student.find({ isActive: true, isKicked: false });
-                io.to('teachers').emit('students:list', allStudents);
+                io.emit('students:list', allStudents);
 
-                // Check for active question
-                const activeQuestion = await Question.findOne({ isActive: true });
-                if (activeQuestion) {
-                    console.log(`📤 Sending active question to ${name}`);
-                    socket.emit('question:new', activeQuestion);
+                // Only send question if teacher is online AND there's an active question
+                if (hasTeacher && currentQuestionId) {
+                    const activeQuestion = await Question.findById(currentQuestionId);
+                    if (activeQuestion && activeQuestion.isActive) {
+                        console.log(`📤 Sending active question to ${name}`);
+                        socket.emit('question:new', activeQuestion);
+
+                        // Add to participant tracker
+                        participantTracker.set(socket.id, currentQuestionId);
+
+                        // Update expected count in the question
+                        activeQuestion.expectedStudents = participantTracker.size;
+                        await activeQuestion.save();
+
+                        // Notify teachers about updated count
+                        io.to('teachers').emit('question:created', activeQuestion);
+                    }
                 }
-
             } catch (error) {
                 console.error('❌ Error in student:join:', error);
-                socket.emit('error', { message: 'Failed to join' });
             }
         });
 
-        // QUESTION EVENTS
-        socket.on('question:create', async(data) => {
+        /* ================= GET STUDENTS ================= */
+        socket.on('students:get', async() => {
             try {
-                const { questionText, options, timeLimit } = data;
+                const students = await Student.find({ isActive: true, isKicked: false });
+                socket.emit('students:list', students);
+            } catch (error) {
+                console.error('❌ Error getting students:', error);
+            }
+        });
 
+        /* ================= KICK STUDENT ================= */
+        socket.on('student:kick', async({ studentId }) => {
+            try {
+                await Student.findOneAndUpdate({ socketId: studentId }, { isKicked: true, isActive: false });
+
+                // Remove from tracker
+                participantTracker.delete(studentId);
+
+                io.to(studentId).emit('student:kicked');
+
+                const students = await Student.find({ isActive: true, isKicked: false });
+                io.emit('students:list', students);
+
+                console.log(`👢 Student kicked: ${studentId}`);
+            } catch (error) {
+                console.error('❌ Error kicking student:', error);
+            }
+        });
+
+        /* ================= CREATE QUESTION ================= */
+        socket.on('question:create', async({ questionText, options, timeLimit }) => {
+            try {
                 console.log('📝 Creating question:', questionText);
 
-                await Question.updateMany({ isActive: true }, { isActive: false, endedAt: new Date() });
+                // Close existing question
+                if (currentQuestionId) {
+                    const oldQuestion = await Question.findById(currentQuestionId);
+                    if (oldQuestion && oldQuestion.isActive) {
+                        const remaining = participantTracker.size;
 
+                        if (remaining > 0) {
+                            socket.emit('error', {
+                                message: `Cannot create new question. ${remaining} student(s) haven't answered yet.`,
+                                remainingStudents: remaining
+                            });
+                            return;
+                        }
+
+                        oldQuestion.isActive = false;
+                        oldQuestion.endedAt = new Date();
+                        await oldQuestion.save();
+                    }
+                    clearQuestionState();
+                }
+
+                // Count connected students
+                const expectedStudents = connectedClients.students.size;
+
+                if (expectedStudents === 0) {
+                    socket.emit('error', {
+                        message: 'Cannot create question. No students in the room.',
+                        noStudents: true
+                    });
+                    return;
+                }
+
+                // Create question
                 const formattedOptions = options.map(opt => ({
                     text: typeof opt === 'string' ? opt : opt.text,
                     isCorrect: opt.isCorrect || false,
@@ -88,34 +170,85 @@ module.exports = (io) => {
                     votedBy: [],
                 }));
 
-                const activeStudents = await Student.countDocuments({
-                    isActive: true,
-                    isKicked: false
-                });
-
                 const question = new Question({
                     questionText,
                     options: formattedOptions,
                     timeLimit: timeLimit || 60,
-                    expectedStudents: activeStudents,
+                    expectedStudents,
                     isActive: true,
+                    totalVotes: 0,
                 });
 
                 await question.save();
+                currentQuestionId = question._id.toString();
 
                 console.log(`✅ Question created: ${question._id}`);
 
-                // Notify teachers
+                // Initialize participant tracker
+                participantTracker.clear();
+                connectedClients.students.forEach((_, socketId) => {
+                    participantTracker.set(socketId, currentQuestionId);
+                });
+
+                console.log(`📊 Tracking ${participantTracker.size} participants`);
+
+                // Notify everyone
                 io.to('teachers').emit('question:created', question);
-
-                // Get students room size
-                const studentsRoom = io.sockets.adapter.rooms.get('students');
-                const roomSize = studentsRoom ? studentsRoom.size : 0;
-                console.log(`📊 Broadcasting to ${roomSize} students in room`);
-
-                // Broadcast to ALL students
                 io.to('students').emit('question:new', question);
-                console.log(`✅ Question broadcasted to students room`);
+
+                // Set timeout timer
+                // ================= TIMEOUT HANDLER FIX =================
+                questionTimer = setTimeout(async() => {
+                    try {
+                        const q = await Question.findById(currentQuestionId);
+                        if (!q || !q.isActive) return;
+
+                        const timedOutStudents = Array.from(participantTracker.keys());
+
+                        console.log(`⏰ Timer expired`);
+                        console.log(`🧮 Timed out students: ${timedOutStudents.length}`);
+
+                        // IMPORTANT FIX: Count timed-out students as responses
+                        q.totalVotes += timedOutStudents.length;
+
+                        q.isActive = false;
+                        q.allStudentsAnswered = true;
+                        q.endedAt = new Date();
+
+                        q.calculatePercentages();
+                        await q.save();
+
+                        // Update students as timed out
+                        await Student.updateMany({ socketId: { $in: timedOutStudents } }, {
+                            currentAnswer: {
+                                questionId: q._id,
+                                optionIndex: null,
+                                answeredAt: new Date(),
+                                timedOut: true,
+                            },
+                        });
+
+                        const resultsPayload = {
+                            questionId: q._id,
+                            results: q.options.map(opt => ({
+                                text: opt.text,
+                                votes: opt.votes,
+                                percentage: opt.percentage,
+                                isCorrect: opt.isCorrect,
+                            })),
+                            totalVotes: q.totalVotes,
+                            expectedStudents: q.expectedStudents,
+                        };
+
+                        // 🔥 SEND TO EVERYONE
+                        io.emit('question:timeup', resultsPayload);
+
+                        clearQuestionState();
+                        console.log('✅ Question closed via timeout');
+                    } catch (err) {
+                        console.error('❌ Timeout handler error:', err);
+                    }
+                }, timeLimit * 1000);
 
             } catch (error) {
                 console.error('❌ Error creating question:', error);
@@ -123,7 +256,7 @@ module.exports = (io) => {
             }
         });
 
-        // ANSWER SUBMISSION
+        /* ================= ANSWER SUBMISSION ================= */
         socket.on('answer:submit', async({ questionId, optionIndex }) => {
             try {
                 const question = await Question.findById(questionId);
@@ -133,6 +266,7 @@ module.exports = (io) => {
                     return;
                 }
 
+                // Check already voted
                 const alreadyVoted = question.options.some(opt =>
                     opt.votedBy.includes(socket.id)
                 );
@@ -142,32 +276,76 @@ module.exports = (io) => {
                     return;
                 }
 
+                // Remove from participant tracker
+                participantTracker.delete(socket.id);
+
+                // Record vote
                 question.options[optionIndex].votes += 1;
                 question.options[optionIndex].votedBy.push(socket.id);
                 question.totalVotes += 1;
 
                 question.calculatePercentages();
 
-                if (question.totalVotes >= question.expectedStudents) {
+                console.log(`✅ Answer recorded. Votes: ${question.totalVotes}, Remaining: ${participantTracker.size}`);
+
+                // Check if all answered
+                const allAnswered = participantTracker.size === 0;
+
+                if (allAnswered) {
+                    question.isActive = false;
                     question.allStudentsAnswered = true;
+                    question.endedAt = new Date();
+                    await question.save();
+
+                    // Clear timer
+                    if (questionTimer) {
+                        clearTimeout(questionTimer);
+                        questionTimer = null;
+                    }
+
+                    // Send final results
+                    io.emit('question:ended', {
+                        questionId: question._id,
+                        results: question.options.map(opt => ({
+                            text: opt.text,
+                            votes: opt.votes,
+                            percentage: opt.percentage,
+                            isCorrect: opt.isCorrect,
+                        })),
+                        totalVotes: question.totalVotes,
+                    });
+
+                    clearQuestionState();
+                    console.log(`✅ Question ended - all students answered`);
+                } else {
+                    await question.save();
+
+                    // Send intermediate results
+                    io.emit('results:update', {
+                        questionId: question._id,
+                        options: question.options.map(opt => ({
+                            text: opt.text,
+                            votes: opt.votes,
+                            percentage: opt.percentage,
+                            isCorrect: opt.isCorrect,
+                        })),
+                        totalVotes: question.totalVotes,
+                    });
                 }
 
-                await question.save();
-
-                console.log(`✅ Answer recorded. Total: ${question.totalVotes}/${question.expectedStudents}`);
-
-                const resultsData = {
-                    questionId: question._id,
-                    options: question.options.map(opt => ({
-                        text: opt.text,
-                        votes: opt.votes,
-                        percentage: opt.percentage,
-                        isCorrect: opt.isCorrect,
-                    })),
-                    totalVotes: question.totalVotes,
-                };
-
-                io.emit('results:update', resultsData);
+                // Update student DB
+                try {
+                    await Student.findOneAndUpdate({ socketId: socket.id }, {
+                        currentAnswer: {
+                            questionId: question._id,
+                            optionIndex,
+                            answeredAt: new Date(),
+                            timedOut: false,
+                        },
+                    });
+                } catch (err) {
+                    console.error('Error updating student answer:', err);
+                }
 
             } catch (error) {
                 console.error('❌ Error submitting answer:', error);
@@ -175,65 +353,49 @@ module.exports = (io) => {
             }
         });
 
-        // Other socket handlers remain the same...
-        socket.on('question:timeup', async({ questionId }) => {
-            try {
-                const question = await Question.findByIdAndUpdate(
-                    questionId, { isActive: false, endedAt: new Date() }, { new: true }
-                );
-
-                if (question) {
-                    io.emit('question:ended', {
-                        questionId: question._id,
-                        results: question.options,
-                    });
-                }
-            } catch (error) {
-                console.error('Error ending question:', error);
-            }
-        });
-
-        socket.on('student:kick', async({ studentId }) => {
-            try {
-                await Student.findOneAndUpdate({ socketId: studentId }, { isKicked: true, isActive: false });
-                io.to(studentId).emit('student:kicked');
-                const students = await Student.find({ isActive: true, isKicked: false });
-                io.to('teachers').emit('students:list', students);
-            } catch (error) {
-                console.error('Error kicking student:', error);
-            }
-        });
-
-        socket.on('students:get', async() => {
-            try {
-                const students = await Student.find({ isActive: true, isKicked: false });
-                socket.emit('students:list', students);
-            } catch (error) {
-                console.error('Error getting students:', error);
-            }
-        });
-
-        socket.on('chat:message', async({ sender, message, senderRole }) => {
-            try {
-                const chat = new Chat({ sender, message, senderRole });
-                await chat.save();
-                io.emit('chat:newMessage', chat);
-            } catch (error) {
-                console.error('Error saving chat:', error);
-            }
-        });
-
+        /* ================= DISCONNECT ================= */
         socket.on('disconnect', async() => {
             console.log(`❌ Disconnected: ${socket.id}`);
 
+            // Teacher disconnected
             if (connectedClients.teachers.has(socket.id)) {
                 connectedClients.teachers.delete(socket.id);
+                console.log('👨‍🏫 Teacher left');
+
+                // If no teachers left, end session
+                if (connectedClients.teachers.size === 0) {
+                    console.log('⚠️ No teachers online - ending session');
+
+                    if (currentQuestionId) {
+                        const activeQuestion = await Question.findById(currentQuestionId);
+                        if (activeQuestion && activeQuestion.isActive) {
+                            activeQuestion.isActive = false;
+                            activeQuestion.endedAt = new Date();
+                            await activeQuestion.save();
+                        }
+                    }
+
+                    clearQuestionState();
+
+                    // Notify students
+                    io.to('students').emit('question:ended', {
+                        teacherLeft: true,
+                        sessionEnded: true,
+                    });
+
+                    console.log('✅ Session ended');
+                }
             }
 
+            // Student disconnected
             if (connectedClients.students.has(socket.id)) {
                 const studentInfo = connectedClients.students.get(socket.id);
                 connectedClients.students.delete(socket.id);
 
+                // Remove from tracker
+                participantTracker.delete(socket.id);
+
+                // Mark inactive
                 await Student.findOneAndUpdate({ socketId: socket.id }, { isActive: false });
 
                 io.to('teachers').emit('student:left', {
@@ -242,7 +404,9 @@ module.exports = (io) => {
                 });
 
                 const students = await Student.find({ isActive: true, isKicked: false });
-                io.to('teachers').emit('students:list', students);
+                io.emit('students:list', students);
+
+                console.log(`👋 Student left: ${studentInfo.name}`);
             }
         });
     });

@@ -1,7 +1,7 @@
 import io from 'socket.io-client';
 
 // Fix for process.env not being defined
-const SOCKET_URL = "https://real-time-polling-system-zeta.vercel.app"
+const SOCKET_URL = "https://real-time-polling-system-1.onrender.com"
 
 class SocketService {
     constructor() {

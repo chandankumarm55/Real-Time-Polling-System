@@ -2,7 +2,7 @@
 import axios from 'axios';
 
 // Fix for process.env not being defined
-const API_URL = "https://real-time-polling-system-zeta.vercel.app/api"
+const API_URL = "https://real-time-polling-system-1.onrender.com/api"
 
 const api = axios.create({
     baseURL: API_URL,

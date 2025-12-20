@@ -2,7 +2,8 @@
 import axios from 'axios';
 
 // Fix for process.env not being defined
-const API_URL = "https://real-time-polling-system-1.onrender.com/api"
+const API_URL =
+    import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
     baseURL: API_URL,

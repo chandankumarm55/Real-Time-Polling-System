@@ -1,8 +1,8 @@
 import io from 'socket.io-client';
 
 // Fix for process.env not being defined
-const SOCKET_URL = (typeof process !== 'undefined' && process.env.REACT_APP_SOCKET_URL) ?
-    process.env.REACT_APP_SOCKET_URL :
+const SOCKET_URL = (typeof process !== 'undefined' && process.env.VITE_SOCKET_URL) ?
+    process.env.VITE_SOCKET_URL :
     'http://localhost:5000';
 
 class SocketService {

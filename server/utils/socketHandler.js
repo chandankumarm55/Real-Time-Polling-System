@@ -124,6 +124,41 @@ module.exports = (io) => {
             }
         });
 
+        /* ================= CHAT MESSAGE ================= */
+        socket.on('chat:message', async({ sender, message, senderRole }) => {
+            try {
+                console.log('💬 Chat message received:', { sender, senderRole, message });
+
+                if (!sender || !message || !senderRole) {
+                    console.error('❌ Invalid chat message data');
+                    return;
+                }
+
+                // Save message to database
+                const chatMessage = new Chat({
+                    sender,
+                    senderRole,
+                    message,
+                    socketId: socket.id,
+                });
+
+                await chatMessage.save();
+
+                // Broadcast to all connected clients (teachers and students)
+                io.emit('chat:newMessage', {
+                    _id: chatMessage._id,
+                    sender: chatMessage.sender,
+                    senderRole: chatMessage.senderRole,
+                    message: chatMessage.message,
+                    timestamp: chatMessage.timestamp,
+                });
+
+                console.log('✅ Chat message broadcasted');
+            } catch (error) {
+                console.error('❌ Error handling chat message:', error);
+            }
+        });
+
         /* ================= CREATE QUESTION ================= */
         socket.on('question:create', async({ questionText, options, timeLimit }) => {
             try {
@@ -197,7 +232,6 @@ module.exports = (io) => {
                 io.to('students').emit('question:new', question);
 
                 // Set timeout timer
-                // ================= TIMEOUT HANDLER FIX =================
                 questionTimer = setTimeout(async() => {
                     try {
                         const q = await Question.findById(currentQuestionId);
@@ -208,7 +242,7 @@ module.exports = (io) => {
                         console.log(`⏰ Timer expired`);
                         console.log(`🧮 Timed out students: ${timedOutStudents.length}`);
 
-                        // IMPORTANT FIX: Count timed-out students as responses
+                        // Count timed-out students as responses
                         q.totalVotes += timedOutStudents.length;
 
                         q.isActive = false;
@@ -240,7 +274,7 @@ module.exports = (io) => {
                             expectedStudents: q.expectedStudents,
                         };
 
-                        // 🔥 SEND TO EVERYONE
+                        // Send to everyone
                         io.emit('question:timeup', resultsPayload);
 
                         clearQuestionState();

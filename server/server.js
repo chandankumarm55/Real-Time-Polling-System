@@ -21,9 +21,9 @@ connectDB();
 
 // CORS allowed origins - ADD YOUR VERCEL URL HERE
 const allowedOrigins = [
+    'https://real-time-polling-system-frontend.vercel.app',
     'http://localhost:5173',
     'http://localhost:3000',
-    'https://real-time-polling-system-frontend.vercel.app', // Your Vercel URL
     'https://real-time-polling-system-frontend-*.vercel.app', // Preview deployments
 ];
 

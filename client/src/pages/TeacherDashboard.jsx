@@ -79,7 +79,6 @@ const TeacherDashboard = () => {
 
         const handleQuestionTimeUp = (data) => {
             console.log('⏰ Question time up:', data);
-            toast.error('Time is up!');
             setCanCreateQuestion(true);
 
             // Update final results
